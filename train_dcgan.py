@@ -1,7 +1,5 @@
-import numpy as np
 import argparse
 import torch
-from torch.optim import Adam
 from tensorboardX import SummaryWriter
 import torchvision.utils as tvu
 

@@ -1,5 +1,4 @@
 import torch.nn as nn
-import torch
 
 
 class BatchFlatten(nn.Module):
