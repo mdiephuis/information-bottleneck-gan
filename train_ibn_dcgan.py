@@ -131,7 +131,7 @@ def train_validate(G, D, G_optim, D_optim, loader, epoch, is_train):
         # Generator forward again
         z = sample_uniform_noise(batch_size, args.noise_dim).type(dtype)
 
-        # Generator forward
+        # Generator forward, no detach!
         x_fake = G(z)
         y_fake = D(x_fake.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
