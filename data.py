@@ -1,5 +1,6 @@
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+import numpy as np
 
 
 class Loader(object):
@@ -61,3 +62,31 @@ class Loader(object):
                                target_transform=target_transform)
 
         return train_dataset, test_dataset
+
+
+# fix this
+class gauss_circle(object):
+    def __init__(self):
+        self.num_circles = 8
+        self.std = 0.02
+        self.size = 2
+        radius = 2
+        delta = 2 * np.pi / self.num_circles
+
+        centers_x = np.asarray([radius * np.cos(i * delta) for i in range(self.num_circles)])
+        centers_y = np.asarray([radius * np.sin(i * delta) for i in range(self.num_circles)])
+
+        # Stricktly Uniform
+#         self.p = [1./self.num_circles for _ in range(self.num_circles)]
+
+        # Random draw from uniform distribution
+        self.p = [np.random.uniform() for _ in range(self.num_circles)]
+        self.p /= np.sum(self.p)
+
+        self.centers = np.concatenate((centers_x[:, np.newaxis], centers_y[:, np.newaxis]), 1)
+
+    def sample(self, n_samples):
+        centers_idx = np.random.choice(self.num_circles, n_samples, p=self.p)
+        centers_sample = self.centers[centers_idx, :]
+        data_sample = np.random.normal(loc=centers_sample, scale=self.std)
+        return data_sample.astype('float32')
