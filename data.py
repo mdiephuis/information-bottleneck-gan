@@ -64,24 +64,24 @@ class Loader(object):
         return train_dataset, test_dataset
 
 
-# fix this
 class gauss_circle(object):
-    def __init__(self):
-        self.num_circles = 8
-        self.std = 0.02
-        self.size = 2
-        radius = 2
+    def __init__(self, size=2, num_circles=8, std=0.02, radius=2, uniform=False):
+        self.num_circles = num_circles
+        self.std = std
+        self.size = size
+        self.radius = radius
         delta = 2 * np.pi / self.num_circles
 
-        centers_x = np.asarray([radius * np.cos(i * delta) for i in range(self.num_circles)])
-        centers_y = np.asarray([radius * np.sin(i * delta) for i in range(self.num_circles)])
+        centers_x = np.asarray([self.radius * np.cos(i * delta) for i in range(self.num_circles)])
+        centers_y = np.asarray([self.radius * np.sin(i * delta) for i in range(self.num_circles)])
 
-        # Stricktly Uniform
-#         self.p = [1./self.num_circles for _ in range(self.num_circles)]
-
-        # Random draw from uniform distribution
-        self.p = [np.random.uniform() for _ in range(self.num_circles)]
-        self.p /= np.sum(self.p)
+        if self.uniform is True:
+            # Strictly Uniform
+            self.p = [1. / self.num_circles for _ in range(self.num_circles)]
+        else:
+            # Random draw from uniform distribution
+            self.p = [np.random.uniform() for _ in range(self.num_circles)]
+            self.p /= np.sum(self.p)
 
         self.centers = np.concatenate((centers_x[:, np.newaxis], centers_y[:, np.newaxis]), 1)
 
