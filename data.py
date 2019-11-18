@@ -1,5 +1,6 @@
 from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
+from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
 import os
 import cv2
@@ -94,29 +95,42 @@ class gauss_circle(object):
         return data_sample.astype('float32')
 
 
-class CELEBA(Dataset):
+class CelebALoader(object):
     """
     loader for the CELEB-A dataset
     """
-    def __init__(self, data_folder):
+    def __init__(self, file_path, batch_size, valid_size, shuffle, use_cuda):
 
-        self.len = len(os.listdir(data_folder))
-        self.data_names = [os.path.join(data_folder, name) for name in sorted(os.listdir(data_folder))]
+        kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
 
-        self.len = len(self.data_names)
+        transform = transforms.Compose([
+            transforms.Resize((64, 64)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
 
-    def __len__(self):
-        return self.len
+        train_dataset, test_dataset = self.get_dataset(file_path, transform)
 
-    def __iter__(self):
-        return self
+        # Set the samplers
+        num_train = len(train_dataset)
+        indices = list(range(num_train))
+        split = int(np.floor(valid_size * num_train))
 
-    def __getitem__(self, item):
+        if shuffle:
+            np.random.shuffle(indices)
 
-        image = cv2.cvtColor(cv2.imread(self.data_names[item]), cv2.COLOR_BGR2RGB)
+        train_idx, valid_idx = indices[split:], indices[:split]
+        train_sampler = SubsetRandomSampler(train_idx)
+        valid_sampler = SubsetRandomSampler(valid_idx)
 
-        # CHANNEL FIRST
-        image = image.transpose(2, 0, 1)
-        image = image.astype("float32")
+        # Set the loaders
+        self.train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, **kwargs)
+        self.test_loader = DataLoader(test_dataset, batch_size=batch_size, sampler=valid_sampler, **kwargs)
 
-        return image
+    @staticmethod
+    def get_dataset(file_path, transform):
+
+        train_dataset = datasets.ImageFolder(file_path, transform=transform)
+        test_dataset = datasets.ImageFolder(file_path, transform=transform)
+
+        return train_dataset, test_dataset
