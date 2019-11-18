@@ -1,6 +1,8 @@
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
 import numpy as np
+import os
+import cv2
 
 
 class Loader(object):
@@ -90,3 +92,31 @@ class gauss_circle(object):
         centers_sample = self.centers[centers_idx, :]
         data_sample = np.random.normal(loc=centers_sample, scale=self.std)
         return data_sample.astype('float32')
+
+
+class CELEBA(Dataset):
+    """
+    loader for the CELEB-A dataset
+    """
+    def __init__(self, data_folder):
+
+        self.len = len(os.listdir(data_folder))
+        self.data_names = [os.path.join(data_folder, name) for name in sorted(os.listdir(data_folder))]
+
+        self.len = len(self.data_names)
+
+    def __len__(self):
+        return self.len
+
+    def __iter__(self):
+        return self
+
+    def __getitem__(self, item):
+
+        image = cv2.cvtColor(cv2.imread(self.data_names[item]), cv2.COLOR_BGR2RGB)
+
+        # CHANNEL FIRST
+        image = image.transpose(2, 0, 1)
+        image = image.astype("float32")
+
+        return image
