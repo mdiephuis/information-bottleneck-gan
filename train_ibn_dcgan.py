@@ -74,7 +74,7 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
     E_batch_loss = 0
     G_batch_loss = 0
     D_batch_loss = 0
-    loss_bce = nn.BCELoss()
+    loss_bce = nn.BCELoss(reduction='sum')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
