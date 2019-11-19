@@ -74,12 +74,19 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
     E_batch_loss = 0
     G_batch_loss = 0
     D_batch_loss = 0
+    loss_bce = nn.BCELoss()
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
         batch_size = x.size(0)
 
         x = x.cuda() if args.cuda else x
+
+        eta = sample_gauss_noise(batch_size, x.size(2) * x.size(3), 0, 0.1)
+
+        eta = eta.cuda() if args.cuda else eta
+
+        x += eta.view(batch_size, 1, x.size(2), x.size(3))
 
         # Encoder forward
         z_hat, z_mu, z_logvar = E(x.view(batch_size, -1))
@@ -104,8 +111,8 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
         y_real = D(x)
 
         # Discriminator loss
-        y_ones = torch.ones(batch_size, )
-        y_zeros = torch.zeros(batch_size, )
+        y_ones = torch.ones(batch_size)
+        y_zeros = torch.zeros(batch_size)
 
         y_ones = y_ones.cuda() if args.cuda else y_ones
         y_zeros = y_zeros.cuda() if args.cuda else y_zeros
@@ -136,13 +143,13 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
         loss_recon = loss_bce(x_hat.view(-1, 1), x.view(-1, 1))
 
         # Discriminator loss
-        y_ones = torch.ones(batch_size, )
+        y_ones = torch.ones(batch_size)
         y_ones = y_ones.cuda() if args.cuda else y_ones
 
         # Discriminator loss
         discriminator_loss = loss_bce(y_real, y_ones)
 
-        generator_loss = loss_recon + discriminator_loss
+        generator_loss = 1e-6 * loss_recon + discriminator_loss
 
         G_batch_loss += generator_loss.item() / batch_size
 
