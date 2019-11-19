@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 
 
 class BatchFlatten(nn.Module):
@@ -67,3 +68,79 @@ class DCGAN_Generator(nn.Module):
         for layer in self.network:
             x = layer(x)
         return x
+
+
+class MNIST_Generator(nn.Module):
+    def __init__(self, latent_dim, hidden_dim, output_dim):
+        super(MNIST_Generator, self).__init__()
+        self.latent_dim = latent_dim
+        self.hidden_dim = hidden_dim
+        self.output_dim = output_dim
+
+        self.network = nn.ModuleList([
+            nn.Linear(self.latent_dim, self.hidden_dim),
+            nn.ReLU(),
+            nn.Linear(self.hidden_dim, self.output_dim),
+            nn.Sigmoid()
+        ])
+
+    def forward(self, x):
+        for layer in self.network:
+            x = layer(x)
+        return x
+
+
+class MNIST_Encoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim, latent_dim):
+        super(MNIST_Encoder, self).__init__()
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        self.latent_dim = latent_dim
+
+        self.network = nn.Sequential(
+            nn.Linear(self.input_dim, self.hidden_dim),
+            nn.ReLU(),
+            nn.Linear(self.hidden_dim, self.hidden_dim),
+            nn.ReLU()
+        )
+
+        self.encoder_mu = nn.Linear(self.hidden_dim, self.latent_dim)
+        self.encoder_std = nn.Linear(self.hidden_dim, self.latent_dim)
+
+    def encode(self, x):
+        x = self.network(x)
+        mu = self.encoder_mu(x)
+        log_var = self.encoder_std(x)
+        log_var = torch.clamp(torch.sigmoid(log_var), min=0.01)
+        return mu, log_var
+
+    def reparameterize(self, mu, log_var):
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        z = eps.mul(std).add_(mu)
+        return z
+
+    def forward(self, x):
+        mu, log_var = self.encode(x)
+        z = self.reparameterize(mu, log_var)
+        return z, mu, log_var
+
+
+class MNIST_Discriminator(nn.Module):
+    def __init__(self, input_dim, hidden_dim):
+        super(MNIST_Discriminator, self).__init__()
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+
+        self.network = nn.ModuleList([
+            BatchFlatten(),
+            nn.Linear(self.input_dim, self.hidden_dim),
+            nn.ReLU(),
+            nn.Linear(self.hidden_dim, 1)
+        ])
+
+    def forward(self, x):
+        for layer in self.network:
+            x = layer(x)
+        return torch.sigmoid(x)
+
