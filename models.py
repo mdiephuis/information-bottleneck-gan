@@ -97,12 +97,12 @@ class MNIST_Encoder(nn.Module):
         self.hidden_dim = hidden_dim
         self.latent_dim = latent_dim
 
-        self.network = nn.Sequential([
+        self.network = nn.Sequential(
             nn.Linear(self.input_dim, self.hidden_dim),
             nn.ReLU(),
             nn.Linear(self.hidden_dim, self.hidden_dim),
             nn.ReLU()
-        ])
+        )
 
         self.encoder_mu = nn.Linear(self.hidden_dim, self.latent_dim)
         self.encoder_std = nn.Linear(self.hidden_dim, self.latent_dim)
@@ -111,6 +111,7 @@ class MNIST_Encoder(nn.Module):
         x = self.network(x)
         mu = self.encoder_mu(x)
         log_var = self.encoder_std(x)
+        log_var = torch.clamp(torch.sigmoid(log_var), min=0.01)
         return mu, log_var
 
     def reparameterize(self, mu, log_var):

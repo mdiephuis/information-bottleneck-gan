@@ -20,8 +20,8 @@ parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input training batch-size')
 parser.add_argument('--epochs', type=int, default=15, metavar='N',
                     help='number of training epochs (default: 15)')
-parser.add_argument('--noise-dim', type=int, default=96, metavar='N',
-                    help='Noise dimension (default: 96)')
+parser.add_argument('--latent-dim', type=int, default=20, metavar='N',
+                    help='Noise dimension (default: 20)')
 parser.add_argument('--encoder-size', type=int, default=128, metavar='N',
                     help='VAE encoder size (default: 128')
 parser.add_argument('--log-dir', type=str, default='runs',
@@ -94,7 +94,7 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
         loss_kld = loss_kl_gauss(z_mu, z_logvar)
 
         # Loss 2, Reconstruction
-        loss_recon = loss_bce(x_hat, x)
+        loss_recon = loss_bce(x_hat.view(-1, 1), x.view(-1, 1))
 
         encoder_loss = loss_kld + loss_recon
 
@@ -117,22 +117,23 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
 
         if is_train:
             E_optim.zero_grad()
-            encoder_loss.backward()
+            encoder_loss.backward(retain_graph=True)
             E_optim.step()
 
             D_optim.zero_grad()
-            discriminator_loss.backward()
+            discriminator_loss.backward(retain_graph=True)
             D_optim.step()
 
         # RRound 2
         # Encoder forward
-        z_hat, _, _ = E(x.view(batch_size, -1)).detach()
+        z_hat, _, _ = E(x.view(batch_size, -1))
+        z_hat = z_hat.detach()
 
         # Generator forward
         x_hat = G(z_hat)
         y_hat = D(x_hat)
 
-        loss_recon = loss_bce(x_hat, x)
+        loss_recon = loss_bce(x_hat.view(-1, 1), x.view(-1, 1))
 
         # Discriminator loss
         y_ones = torch.ones(batch_size, )
@@ -159,11 +160,10 @@ def execute_graph(E, G, D, E_optim, G_optim, D_optim, loader, epoch, use_tb):
     E_t_loss, G_t_loss, D_t_loss = train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train=True)
 
     # Validation loss
-    G_v_loss, G_v_loss, D_v_loss = train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train=False)
+    E_v_loss, G_v_loss, D_v_loss = train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train=False)
 
-    print('=> epoch: {} Average Train E loss: {:.4f}, D loss: {:.4f}'.format(epoch, E_t_loss, E_t_loss))
-    print('=> epoch: {} Average Train G loss: {:.4f}, D loss: {:.4f}'.format(epoch, G_t_loss, D_t_loss))
-    print('=> epoch: {} Average Valid G loss: {:.4f}, D loss: {:.4f}'.format(epoch, G_v_loss, D_v_loss))
+    print('=> epoch: {} Average Train E loss: {:.4f}, G loss: {:.4f}, D loss: {:.4f}'.format(epoch, E_t_loss, G_t_loss, D_t_loss))
+    print('=> epoch: {} Average Valid E loss: {:.4f}, G loss: {:.4f}, D loss: {:.4f}'.format(epoch, E_v_loss, G_v_loss, D_v_loss))
 
     if use_tb:
         logger.add_scalar(log_dir + '/E-train-loss', E_t_loss, epoch)
@@ -176,7 +176,7 @@ def execute_graph(E, G, D, E_optim, G_optim, D_optim, loader, epoch, use_tb):
 
     # Generate examples
         img_shape = loader.img_shape
-        sample = mnist_generation_example(G, args.noise_dim, 10, img_shape, args.cuda)
+        sample = mnist_generation_example(G, args.latent_dim, 10, img_shape, args.cuda)
         sample = sample.detach()
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('generation example', sample, epoch)
@@ -191,7 +191,7 @@ latent_dim = 20
 
 E = MNIST_Encoder(input_dim, hidden_dim, latent_dim).type(dtype)
 G = MNIST_Generator(latent_dim, hidden_dim, input_dim).type(dtype)
-D = MNIST_Discriminator(input_dim, hidden_dim)
+D = MNIST_Discriminator(input_dim, hidden_dim).type(dtype)
 
 E.apply(init_xavier_weights)
 G.apply(init_xavier_weights)
