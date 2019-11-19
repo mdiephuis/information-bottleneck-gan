@@ -142,5 +142,5 @@ class MNIST_Discriminator(nn.Module):
     def forward(self, x):
         for layer in self.network:
             x = layer(x)
-        return x
+        return torch.sigmoid(x)
 
