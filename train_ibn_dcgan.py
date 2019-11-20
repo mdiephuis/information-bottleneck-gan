@@ -20,10 +20,12 @@ parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input training batch-size')
 parser.add_argument('--epochs', type=int, default=15, metavar='N',
                     help='number of training epochs (default: 15)')
-parser.add_argument('--latent-dim', type=int, default=20, metavar='N',
-                    help='Noise dimension (default: 20)')
-parser.add_argument('--encoder-size', type=int, default=128, metavar='N',
-                    help='VAE encoder size (default: 128')
+parser.add_argument('--latent-dim', type=int, default=10, metavar='N',
+                    help='Noise dimension (default: 10)')
+parser.add_argument('--out-channels', type=int, default=64, metavar='N',
+                    help='VAE 2D conv channel output (default: 64')
+parser.add_argument('--encoder-size', type=int, default=1024, metavar='N',
+                    help='VAE encoder size (default: 1024')
 parser.add_argument('--log-dir', type=str, default='runs',
                     help='logging directory (default: runs)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -65,6 +67,8 @@ test_loader = loader.test_loader
 
 def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
 
+    img_shape = loader.img_shape
+
     data_loader = loader.train_loader if is_train else loader.test_loader
 
     E.train() if is_train else E.eval()
@@ -81,12 +85,13 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
         batch_size = x.size(0)
 
         x = x.cuda() if args.cuda else x
+        x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
-        eta = sample_gauss_noise(batch_size, x.size(2) * x.size(3), 0, 0.1)
+        eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
 
         eta = eta.cuda() if args.cuda else eta
 
-        x += eta.view(batch_size, 1, x.size(2), x.size(3))
+        x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
         # Encoder forward
         z_hat, z_mu, z_logvar = E(x.view(batch_size, -1))
@@ -95,7 +100,7 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
 
         # Generator forward
         x_hat = G(z_hat)
-        y_hat = D(x_hat)
+        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
         # Loss 1, kl divergence
         loss_kld = loss_kl_gauss(z_mu, z_logvar)
@@ -133,12 +138,12 @@ def train_validate(E, G, D, E_optim, G_optim, D_optim, loader, epoch, is_train):
 
         # RRound 2
         # Encoder forward
-        z_hat, _, _ = E(x.view(batch_size, -1))
+        z_hat, _, _ = E(x)
         z_hat = z_hat.detach()
 
         # Generator forward
         x_hat = G(z_hat)
-        y_hat = D(x_hat)
+        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
         loss_recon = loss_bce(x_hat.view(-1, 1), x.view(-1, 1))
 
@@ -192,13 +197,17 @@ def execute_graph(E, G, D, E_optim, G_optim, D_optim, loader, epoch, use_tb):
 
 
 # MNIST Model definitions
-input_dim = np.prod(loader.img_shape)
-hidden_dim = 128
-latent_dim = 20
+encoder_size = args.encoder_size
+decoder_size = args.encoder_size
+latent_dim = args.latent_dim
+out_channels = args.out_channels
+in_channels = loader.img_shape[0]
 
-E = MNIST_Encoder(input_dim, hidden_dim, latent_dim).type(dtype)
-G = MNIST_Generator(latent_dim, hidden_dim, input_dim).type(dtype)
-D = MNIST_Discriminator(input_dim, hidden_dim).type(dtype)
+E = DCGAN_Encoder(loader.img_shape, out_channels, encoder_size, latent_size).type(dtype)
+h_conv_outsize = E.H_conv_out
+G = DCGAN_Generator(h_conv_outsize, out_channels, decoder_size, latent_size)
+D = DCGAN_Discriminator(in_channels)
+
 
 E.apply(init_xavier_weights)
 G.apply(init_xavier_weights)
