@@ -1,5 +1,11 @@
 import torch.nn as nn
 import torch
+import numpy as np
+
+
+def conv_size(H_in, k_size, stride, padd, dil=1):
+    H_out = np.floor((H_in + 2 * padd - dil * (k_size - 1) - 1) / stride + 1)
+    return np.int(H_out)
 
 
 class BatchFlatten(nn.Module):
@@ -40,32 +46,68 @@ class DCGAN_Discriminator(nn.Module):
     def forward(self, x):
         for layer in self.network:
             x = layer(x)
-        return x
+        return torch.sigmoid(x)
+
+
+class DCGAN_Encoder(nn.Module):
+    def __init__(self, input_shape, out_channels, encoder_size, latent_size):
+        super(DCGAN_Encoder, self).__init__()
+
+        H_conv_out = conv_size(input_shape[-1], 4, 2, 1)
+        H_conv_out = conv_size(H_conv_out, 4, 2, 1)
+        convnet_out = np.int(H_conv_out * H_conv_out * out_channels * 2)
+        self.H_conv_out = H_conv_out
+
+        self.network = nn.Sequential(
+            # in_channels, out_channels, kernel_size, stride=1, padding=0
+            nn.Conv2d(1, out_channels, 4, 2, padding=1),
+            nn.LeakyReLU(),
+            nn.Conv2d(out_channels, out_channels * 2, 4, 2, padding=1),
+            nn.LeakyReLU(),
+            BatchFlatten(),
+            nn.Linear(convnet_out, encoder_size),
+            nn.LeakyReLU(),
+        )
+
+        self.encoder_mu = nn.Linear(encoder_size, latent_size)
+        self.encoder_std = nn.Linear(encoder_size, latent_size)
+
+    def encode(self, x):
+        x = self.network(x)
+        mu = self.encoder_mu(x)
+        log_var = self.encoder_std(x)
+        log_var = torch.clamp(torch.sigmoid(log_var), min=0.01)
+        return mu, log_var
+
+    def reparameterize(self, mu, log_var):
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        z = eps.mul(std).add_(mu)
+        return z
+
+    def forward(self, x):
+        mu, log_var = self.encode(x)
+        z = self.reparameterize(mu, log_var)
+        return z, mu, log_var
 
 
 class DCGAN_Generator(nn.Module):
-    def __init__(self, noise_dim):
+    def __init__(self, H_conv_out, out_channels, decoder_size, latent_size):
         super(DCGAN_Generator, self).__init__()
-        self.noise_dim = noise_dim
-
-        self.network = nn.ModuleList([
-            nn.Linear(self.noise_dim, 1024),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(1024),
-            nn.Linear(1024, 7 * 7 * 128),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(7 * 7 * 128),
-            BatchReshape((-1, 128, 7, 7)),
-            nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
-            nn.ConvTranspose2d(64, 1, kernel_size=4, stride=2, padding=1),
-            nn.Tanh(),
-            BatchFlatten()
+        self.decoder = nn.ModuleList([
+            nn.Linear(latent_size, decoder_size),
+            nn.ReLU(),
+            nn.Linear(decoder_size, H_conv_out * H_conv_out * out_channels * 2),
+            nn.ReLU(),
+            BatchReshape((out_channels * 2, H_conv_out, H_conv_out, )),
+            nn.ConvTranspose2d(out_channels * 2, out_channels, 4, 2, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(out_channels, 1, 4, 2, padding=1),
+            nn.Sigmoid()
         ])
 
     def forward(self, x):
-        for layer in self.network:
+        for layer in self.decoder:
             x = layer(x)
         return x
 
