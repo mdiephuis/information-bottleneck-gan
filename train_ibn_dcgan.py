@@ -10,7 +10,7 @@ from data import *
 
 parser = argparse.ArgumentParser(description='DCGAN')
 
-parser.add_argument('--uid', type=str, default='IBN_DCGAN_2',
+parser.add_argument('--uid', type=str, default='IBN_DCGAN',
                     help='Staging identifier (default: DCGAN)')
 parser.add_argument('--dataset-name', type=str, default='MNIST',
                     help='Name of dataset (default: MNIST')
@@ -26,7 +26,7 @@ parser.add_argument('--out-channels', type=int, default=64, metavar='N',
                     help='VAE 2D conv channel output (default: 64')
 parser.add_argument('--encoder-size', type=int, default=1024, metavar='N',
                     help='VAE encoder size (default: 1024')
-parser.add_argument('--learning-rate', type=float, default=0.0002,
+parser.add_argument('--learning-rate', type=float, default=1e-4,
                     help='Learning rate (default: 1e-4')
 parser.add_argument('--log-dir', type=str, default='runs',
                     help='logging directory (default: runs)')
@@ -100,7 +100,20 @@ def train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train):
 
         eta = eta.cuda() if args.cuda else eta
 
-        #x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+        x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+
+        # Encoder forward
+        z_hat, _, _ = E(x)
+        z_hat = z_hat.detach()
+
+        # RRRRROUND 1
+
+        # Generator forward
+        x_hat = G(z_hat)
+        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
+
+        # Real data, discriminator forward
+        y_real = D(x)
 
         # Discriminator loss
         y_ones = torch.ones(batch_size, 1)
@@ -108,28 +121,12 @@ def train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train):
 
         y_ones = y_ones.cuda() if args.cuda else y_ones
         y_zeros = y_zeros.cuda() if args.cuda else y_zeros
-
-        # Real data, discriminator forward
-        y_real = D(x)
-        errD_real = loss_bce_sum(y_real, y_ones)
-        errD_real.backward(retain_graph=True)
-
-        # Encoder forward
-        fixed_noise = torch.FloatTensor(batch_size, args.latent_size).normal_(0, 1)
-        fixed_noise = fixed_noise.cuda() if args.cuda else fixed_noise
-
-        # Generator forward
-        x_hat = G(fixed_noise)
-        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
-        errD_fake = loss_bce_sum(y_hat, y_zeros)
-        errD_fake.backward(retain_graph=True)
-
         #
         score_dx += y_real.data.mean()
         score_d_x_hat_1 += y_hat.data.mean()
 
         # Discriminator loss
-        discriminator_loss = errD_real + errD_fake
+        discriminator_loss = loss_bce_sum(y_real, y_ones) + loss_bce_sum(y_hat, y_zeros)
 
         D_batch_loss += discriminator_loss.item() / batch_size
 
@@ -244,7 +241,7 @@ beta1 = 0.5
 beta2 = 0.999
 
 # E_optim = torch.optim.RMSprop(E.parameters(), lr=1e-3, weight_decay=1e-5)
-GE_optim = torch.optim.Adam(list(G.parameters()) + list(E.parameters()), lr=args.learning_rate, betas=(beta1, beta2))
+GE_optim = torch.optim.Adam(list(G.parameters()) + list(E.parameters()), lr=1e-3, betas=(beta1, beta2))
 D_optim = torch.optim.Adam(D.parameters(), lr=args.learning_rate, betas=(beta1, beta2))
 
 
