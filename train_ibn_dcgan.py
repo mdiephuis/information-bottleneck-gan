@@ -3,6 +3,8 @@ import torch
 from tensorboardX import SummaryWriter
 import torchvision.utils as tvu
 
+import torch.nn.functional as F
+
 from models import *
 from utils import *
 from data import *
@@ -83,9 +85,10 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
     # discriminator score on x and x_hat
     score_dx = 0
-    score_d_x_hat = 0
+    score_d_x_hat_1 = 0
 
-    loss_bce_sum = nn.BCELoss(reduction='mean')
+    loss_bce_sum = nn.BCELoss(reduction='sum')
+    loss_bce_mean = nn.BCELoss(reduction='mean')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
@@ -94,17 +97,21 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         x = x.cuda() if args.cuda else x
         x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
-        eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
+        # eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
 
-        eta = eta.cuda() if args.cuda else eta
+        # eta = eta.cuda() if args.cuda else eta
 
-        x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+        # x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
-        #############################################
         # Generator forward
 
         z_draw = sample_gauss_noise(batch_size, args.latent_size)
         z_draw = z_draw.cuda() if args.cuda else z_draw
+
+        #############################################
+        # Encoder forward
+        # z_hat, _, _ = E(x)
+        # z_hat = z_hat.detach()
 
         x_hat = G(z_draw)
         y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
@@ -120,7 +127,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         y_zeros = y_zeros.cuda() if args.cuda else y_zeros
         #
         score_dx += y_real.data.mean()
-        score_d_x_hat += y_hat.data.mean()
+        score_d_x_hat_1 += y_hat.data.mean()
 
         #############################################
         # Discriminator loss
@@ -130,7 +137,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         if is_train:
             D_optim.zero_grad()
-            discriminator_loss.backward(retain_graph=True)
+            discriminator_loss.backward()
             D_optim.step()
 
         #############################################
@@ -143,7 +150,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         x_hat = G(z_draw)
         y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
-        generator_loss = loss_bce_sum(y_hat, y_ones) + loss_bce_sum(x_hat, x)
+        generator_loss = loss_bce_sum(y_hat, y_ones) + F.binary_cross_entropy(x_hat, x)
 
         generator_batch_loss += generator_loss.item() / batch_size
 
@@ -173,7 +180,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
             vae_loss.backward(retain_graph=True)
             EG_optim.step()
 
-    print('D(x): %.4f D(G(z)): %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat / (batch_idx + 1)))
+    print('D(x): %.4f D(G(z)): %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat_1 / (batch_idx + 1)))
 
     return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
 
@@ -255,7 +262,7 @@ G_optim = torch.optim.Adam(G.parameters(), lr=1e-3, betas=(beta1, beta2))
 
 EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=1e-3, betas=(beta1, beta2))
 
-D_optim = torch.optim.Adam(D.parameters(), lr=1e-5, betas=(beta1, beta2))
+D_optim = torch.optim.Adam(D.parameters(), lr=1e-2, betas=(beta1, beta2))
 
 
 # Main training loop
