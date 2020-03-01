@@ -97,11 +97,11 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         x = x.cuda() if args.cuda else x
         x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
-        # eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
+        eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
 
-        # eta = eta.cuda() if args.cuda else eta
+        eta = eta.cuda() if args.cuda else eta
 
-        # x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+        x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
         # Generator forward
 
@@ -262,7 +262,7 @@ G_optim = torch.optim.Adam(G.parameters(), lr=1e-3, betas=(beta1, beta2))
 
 EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=1e-3, betas=(beta1, beta2))
 
-D_optim = torch.optim.Adam(D.parameters(), lr=1e-2, betas=(beta1, beta2))
+D_optim = torch.optim.Adam(D.parameters(), lr=1e-4, betas=(beta1, beta2))
 
 
 # Main training loop
