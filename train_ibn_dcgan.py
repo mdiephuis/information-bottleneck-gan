@@ -240,8 +240,8 @@ G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).ty
 
 print(G)
 
-# D = DCGAN_Discriminator(in_channels).type(dtype)
-D = MNIST_Discriminator(784, 500).type(dtype)
+D = DCGAN_Discriminator(in_channels).type(dtype)
+# D = MNIST_Discriminator(784, 500).type(dtype)
 print(D)
 
 
