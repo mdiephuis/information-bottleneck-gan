@@ -85,7 +85,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
     score_dx = 0
     score_d_x_hat = 0
 
-    loss_bce_sum = nn.BCELoss(reduction='sum')
+    loss_bce_sum = nn.BCELoss(reduction='mean')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
@@ -100,15 +100,11 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
+        #############################################
         # Generator forward
 
         z_draw = sample_gauss_noise(batch_size, args.latent_size)
         z_draw = z_draw.cuda() if args.cuda else z_draw
-
-        #############################################
-        # Encoder forward
-        # z_hat, _, _ = E(x)
-        # z_hat = z_hat.detach()
 
         x_hat = G(z_draw)
         y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
@@ -134,6 +130,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         if is_train:
             D_optim.zero_grad()
+            discriminator_loss.backward(retain_graph=True)
             D_optim.step()
 
         #############################################
