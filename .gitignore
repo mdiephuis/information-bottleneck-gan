@@ -28,6 +28,10 @@ logs/
 # vscode
 .vscode/
 
+#shideh
+.DS_Store
+
+
 # Distribution / packaging
 .Python
 env/
