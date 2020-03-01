@@ -83,8 +83,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
     # discriminator score on x and x_hat
     score_dx = 0
-    score_d_x_hat_1 = 0
-    score_d_x_hat_2 = 0
+    score_d_x_hat = 0
 
     loss_bce_sum = nn.BCELoss(reduction='sum')
 
@@ -125,7 +124,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         y_zeros = y_zeros.cuda() if args.cuda else y_zeros
         #
         score_dx += y_real.data.mean()
-        score_d_x_hat_1 += y_hat.data.mean()
+        score_d_x_hat += y_hat.data.mean()
 
         #############################################
         # Discriminator loss
@@ -177,7 +176,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
             vae_loss.backward(retain_graph=True)
             EG_optim.step()
 
-    print('D(x): %.4f D(G(z)): %.4f , %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat_1 / (batch_idx + 1), score_d_x_hat_2 / (batch_idx + 1)))
+    print('D(x): %.4f D(G(z)): %.4f , %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat / (batch_idx + 1)))
 
     return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
 
@@ -259,7 +258,7 @@ G_optim = torch.optim.Adam(G.parameters(), lr=1e-3, betas=(beta1, beta2))
 
 EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=1e-3, betas=(beta1, beta2))
 
-D_optim = torch.optim.Adam(D.parameters(), lr=args.learning_rate, betas=(beta1, beta2))
+D_optim = torch.optim.Adam(D.parameters(), lr=1e-5, betas=(beta1, beta2))
 
 
 # Main training loop
