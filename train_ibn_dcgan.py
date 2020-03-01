@@ -176,7 +176,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
             vae_loss.backward(retain_graph=True)
             EG_optim.step()
 
-    print('D(x): %.4f D(G(z)): %.4f , %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat / (batch_idx + 1)))
+    print('D(x): %.4f D(G(z)): %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat / (batch_idx + 1)))
 
     return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
 
