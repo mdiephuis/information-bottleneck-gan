@@ -69,10 +69,13 @@ def dcgan_reconstruction_example(E, G, test_loader, n_samples, img_shape, use_cu
     G.eval()
 
     x, _ = next(iter(test_loader))
+
+    x = x.view(x.size(0), -1)
+
     #x = x * 0.5 + 0.5
     x = x.cuda() if use_cuda else x
 
-    x = x.view(-1, img_shape[0], img_shape[1], img_shape[2])
+    # x = x.view(-1, img_shape[0], img_shape[1], img_shape[2])
 
     z_val, _, _ = E(x)
 

@@ -95,20 +95,20 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
     loss_bce_sum = nn.BCELoss(reduction='sum')
     loss_bce_mean = nn.BCELoss(reduction='mean')
-    loss_nll_sum = nn.NLLLoss(reduction='sum')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
         batch_size = x.size(0)
 
         x = x.cuda() if args.cuda else x
-        x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+        x = x.view(batch_size, -1)
+        # x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
-        eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
+        # eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
 
-        eta = eta.cuda() if args.cuda else eta
+        # eta = eta.cuda() if args.cuda else eta
 
-        x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+        # x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
         # Generator forward
 
@@ -121,7 +121,9 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         # z_hat = z_hat.detach()
 
         x_hat = G(z_draw)
-        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
+
+        # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
+        y_hat = D(x_hat)
 
         # Real data, discriminator forward
         y_real = D(x)
@@ -155,7 +157,8 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         # Generator forward
         x_hat = G(z_draw)
-        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
+        # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
+        y_hat = D(x_hat)
 
         generator_loss = loss_bce_sum(y_hat, y_ones) + loss_bce_sum(x_hat, x)
 
