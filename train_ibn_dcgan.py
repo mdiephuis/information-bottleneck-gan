@@ -157,7 +157,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         x_hat = G(z_draw)
         y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
-        generator_loss = loss_bce_mean(y_hat, y_ones) + loss_bce_mean(x_hat, x)
+        generator_loss = loss_bce_sum(y_hat, y_ones) + loss_bce_sum(x_hat, x)
 
         generator_batch_loss += generator_loss.item() / batch_size
 
@@ -177,7 +177,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         loss_kld = loss_kl_gauss(z_mu, z_logvar)
 
         # Loss 2, reconstruction loss
-        loss_recon = loss_bce_mean(x_hat.view(-1, 1), x.view(-1, 1))
+        loss_recon = loss_bce_sum(x_hat.view(-1, 1), x.view(-1, 1))
 
         vae_loss = loss_kld + loss_recon
         vae_batch_loss += vae_loss.item() / batch_size
@@ -254,8 +254,8 @@ G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).ty
 
 print(G)
 
-D = DCGAN_Discriminator(in_channels).type(dtype)
-# D = MNIST_Discriminator(784, 500).type(dtype)
+# D = DCGAN_Discriminator(in_channels).type(dtype)
+D = MNIST_Discriminator(784, 200).type(dtype)
 print(D)
 
 
