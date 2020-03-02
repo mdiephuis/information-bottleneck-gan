@@ -2,6 +2,65 @@ import torch
 import torch.nn as nn
 
 
+def ls_discriminator_loss(scores_real, scores_fake):
+    """
+    Compute the Least-Squares GAN loss for the discriminator.
+
+    Inputs:
+    - scores_real: PyTorch Variable of shape (N,) giving scores for the real data.
+    - scores_fake: PyTorch Variable of shape (N,) giving scores for the fake data.
+
+    Outputs:
+    - loss: A PyTorch Variable containing the loss.
+    """
+
+    N, _ = scores_real.size()
+    dtype = scores_fake.type()
+    id_mat = torch.ones(N, ).type(dtype)
+    loss_real = 0.5 * torch.mean(torch.pow(scores_real - id_mat, 2))
+    loss_fake = 0.5 * torch.mean(torch.pow(scores_fake, 2))
+
+    return loss_real + loss_fake
+
+
+def ls_generator_loss(scores_fake):
+    """
+    Computes the Least-Squares GAN loss for the generator.
+
+    Inputs:
+    - scores_fake: PyTorch Variable of shape (N,) giving scores for the fake data.
+
+    Outputs:
+    - loss: A PyTorch Variable containing the loss.
+    """
+    N, _ = scores_fake.size()
+    dtype = scores_fake.type()
+    id_mat = torch.ones(N, ).type(dtype)
+
+    loss = 0.5 * torch.mean(torch.pow(scores_fake - id_mat, 2))
+    return loss
+
+
+def loss_bce(input, target):
+    """
+    Numerically stable version of the binary cross-entropy loss function.
+
+    As per https://github.com/pytorch/pytorch/issues/751
+    See the TensorFlow docs for a derivation of this formula:
+    https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
+
+    Inputs:
+    - input: PyTorch Variable of shape (N, ) giving scores.
+    - target: PyTorch Variable of shape (N,) containing 0 and 1 giving targets.
+
+    Returns:
+    - A PyTorch Variable containing the mean BCE loss over the minibatch of input data.
+    """
+    neg_abs = - input.abs()
+    loss = input.clamp(min=0) - input * target + (1 + neg_abs.exp()).log()
+    return loss.mean()
+
+
 # https://www.tensorflow.org/api_docs/python/tf/nn/sigmoid_cross_entropy_with_logits
 def loss_sigmoid_cross_entropy_with_logits(x_hat, x):
     loss = x_hat.clamp(min=0) - x_hat * x + torch.log(1 + torch.exp(-torch.abs(x_hat)))
