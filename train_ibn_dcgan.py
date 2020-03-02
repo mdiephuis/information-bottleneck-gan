@@ -95,6 +95,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
     loss_bce_sum = nn.BCELoss(reduction='sum')
     loss_bce_mean = nn.BCELoss(reduction='mean')
+    loss_nll_sum = nn.NLLLoss(reduction='sum')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
@@ -156,7 +157,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         x_hat = G(z_draw)
         y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
-        generator_loss = loss_bce_sum(y_hat, y_ones) + loss_bce_sum(x_hat, x)
+        generator_loss = loss_bce_mean(y_hat, y_ones) + loss_bce_mean(x_hat, x)
 
         generator_batch_loss += generator_loss.item() / batch_size
 
@@ -176,7 +177,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         loss_kld = loss_kl_gauss(z_mu, z_logvar)
 
         # Loss 2, reconstruction loss
-        loss_recon = loss_bce_sum(x_hat.view(-1, 1), x.view(-1, 1))
+        loss_recon = loss_bce_mean(x_hat.view(-1, 1), x.view(-1, 1))
 
         vae_loss = loss_kld + loss_recon
         vae_batch_loss += vae_loss.item() / batch_size

@@ -193,13 +193,12 @@ class DCGAN2_Generator(nn.Module):
             nn.ReLU(),
 
             nn.ConvTranspose2d(out_channels // 2, 1, 3, 1, padding=1),
-            nn.Sigmoid()
         ])
 
     def forward(self, x):
         for layer in self.decoder:
             x = layer(x)
-        return x
+        return torch.tanh(x) * 0.5 + 0.5
 
 
 class MNIST_Generator(nn.Module):
