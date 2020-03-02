@@ -3,6 +3,8 @@ import torch
 from tensorboardX import SummaryWriter
 import torchvision.utils as tvu
 
+import torch.nn.functional as F
+
 from models import *
 from utils import *
 from data import *
@@ -67,7 +69,7 @@ train_loader = loader.train_loader
 test_loader = loader.test_loader
 
 
-def train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train):
+def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train):
 
     img_shape = loader.img_shape
 
@@ -77,17 +79,16 @@ def train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train):
     G.train() if is_train else G.eval()
     D.train() if is_train else D.eval()
 
-    VAE_batch_loss = 0
-    G_batch_loss = 0
-    D_batch_loss = 0
+    vae_batch_loss = 0
+    generator_batch_loss = 0
+    discriminator_batch_loss = 0
 
     # discriminator score on x and x_hat
     score_dx = 0
     score_d_x_hat_1 = 0
-    score_d_x_hat_2 = 0
 
     loss_bce_sum = nn.BCELoss(reduction='sum')
-    # loss_mse = nn.MSELoss()
+    loss_bce_mean = nn.BCELoss(reduction='mean')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
@@ -102,14 +103,17 @@ def train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train):
 
         x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
-        # Encoder forward
-        z_hat, _, _ = E(x)
-        z_hat = z_hat.detach()
-
-        # RRRRROUND 1
-
         # Generator forward
-        x_hat = G(z_hat)
+
+        z_draw = sample_gauss_noise(batch_size, args.latent_size)
+        z_draw = z_draw.cuda() if args.cuda else z_draw
+
+        #############################################
+        # Encoder forward
+        # z_hat, _, _ = E(x)
+        # z_hat = z_hat.detach()
+
+        x_hat = G(z_draw)
         y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
         # Real data, discriminator forward
@@ -125,65 +129,69 @@ def train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train):
         score_dx += y_real.data.mean()
         score_d_x_hat_1 += y_hat.data.mean()
 
+        #############################################
         # Discriminator loss
         discriminator_loss = loss_bce_sum(y_real, y_ones) + loss_bce_sum(y_hat, y_zeros)
 
-        D_batch_loss += discriminator_loss.item() / batch_size
+        discriminator_batch_loss += discriminator_loss.item() / batch_size
 
         if is_train:
             D_optim.zero_grad()
+            discriminator_loss.backward()
             D_optim.step()
-        # RRound 2
-        # Encoder forward
+
+        #############################################
+        # Generator update
+
+        z_draw = sample_gauss_noise(batch_size, args.latent_size)
+        z_draw = z_draw.cuda() if args.cuda else z_draw
+
+        # Generator forward
+        x_hat = G(z_draw)
+        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
+
+        generator_loss = loss_bce_sum(y_hat, y_ones) + F.binary_cross_entropy(x_hat, x)
+
+        generator_batch_loss += generator_loss.item() / batch_size
+
+        if is_train:
+            G_optim.zero_grad()
+            generator_loss.backward(retain_graph=True)
+            G_optim.step()
+
+        #############################################
+        # Encoder - Generator update
         z_hat, z_mu, z_logvar = E(x)
 
         # Generator forward
         x_hat = G(z_hat)
-        y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
-        #
-        score_d_x_hat_2 += y_hat.data.mean()
-
-        loss_recon = loss_bce_sum(x_hat.view(-1, 1), x.view(-1, 1))
         # Loss 1, kl divergence
         loss_kld = loss_kl_gauss(z_mu, z_logvar)
 
-        VAE_loss = loss_kld + loss_recon
+        # Loss 2, reconstruction loss
+        loss_recon = loss_bce_sum(x_hat.view(-1, 1), x.view(-1, 1))
 
-        VAE_batch_loss += VAE_loss.item() / batch_size
-
-        if is_train:
-            GE_optim.zero_grad()
-            VAE_loss.backward(retain_graph=True)
-            GE_optim.step()
-
-        # Discriminator loss
-        y_ones = torch.ones(batch_size, 1)
-        y_ones = y_ones.cuda() if args.cuda else y_ones
-
-        # Discriminator loss
-
-        generator_loss = loss_bce_sum(y_real, y_ones)
-
-        G_batch_loss += generator_loss.item() / batch_size
+        vae_loss = loss_kld + loss_recon
+        vae_batch_loss += vae_loss.item() / batch_size
 
         if is_train:
-            GE_optim.zero_grad()
-            generator_loss.backward(retain_graph=True)
-            GE_optim.step()
+            EG_optim.zero_grad()
+            vae_loss.backward(retain_graph=True)
+            EG_optim.step()
 
-    print('D(x): %.4f D(G(z)): %.4f , %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat_1 / (batch_idx + 1), score_d_x_hat_2 / (batch_idx + 1)))
+    print('D(x): %.4f D(G(z)): %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat_1 / (batch_idx + 1)))
 
-    return VAE_batch_loss / (batch_idx + 1), G_batch_loss / (batch_idx + 1), D_batch_loss / (batch_idx + 1)
+    return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
 
 
-def execute_graph(E, G, D, GE_optim, D_optim, loader, epoch, use_tb):
+def execute_graph(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, use_tb):
     print('=> epoch: {}'.format(epoch))
     # Training loss
-    VAE_t_loss, G_t_loss, D_t_loss = train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train=True)
+    VAE_t_loss, G_t_loss, D_t_loss = train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train=True)
 
     # Validation loss
-    VAE_v_loss, G_v_loss, D_v_loss = train_validate(E, G, D, GE_optim, D_optim, loader, epoch, is_train=False)
+    VAE_v_loss, G_v_loss, D_v_loss = train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train=False)
 
     print('=> epoch: {} Average Train VAE loss: {:.4f}, G loss: {:.4f}, D loss: {:.4f}'.format(epoch, VAE_t_loss, G_t_loss, D_t_loss))
     print('=> epoch: {} Average Valid VAE loss: {:.4f}, G loss: {:.4f}, D loss: {:.4f}'.format(epoch, VAE_v_loss, G_v_loss, D_v_loss))
@@ -235,8 +243,8 @@ G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).ty
 
 print(G)
 
-# D = DCGAN_Discriminator(in_channels).type(dtype)
-D = MNIST_Discriminator(784, 500).type(dtype)
+D = DCGAN_Discriminator(in_channels).type(dtype)
+# D = MNIST_Discriminator(784, 500).type(dtype)
 print(D)
 
 
@@ -249,13 +257,17 @@ beta1 = 0.5
 beta2 = 0.999
 
 # E_optim = torch.optim.RMSprop(E.parameters(), lr=1e-3, weight_decay=1e-5)
-GE_optim = torch.optim.Adam(list(G.parameters()) + list(E.parameters()), lr=1e-3, betas=(beta1, beta2))
-D_optim = torch.optim.Adam(D.parameters(), lr=args.learning_rate, betas=(beta1, beta2))
+E_optim = torch.optim.Adam(E.parameters(), lr=1e-3, betas=(beta1, beta2))
+G_optim = torch.optim.Adam(G.parameters(), lr=1e-3, betas=(beta1, beta2))
+
+EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=1e-3, betas=(beta1, beta2))
+
+D_optim = torch.optim.Adam(D.parameters(), lr=1e-4, betas=(beta1, beta2))
 
 
 # Main training loop
 for epoch in range(1, args.epochs):
-    _, _ = execute_graph(E, G, D, GE_optim, D_optim, loader, epoch, use_tb)
+    _, _ = execute_graph(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, use_tb)
 
 
 # TensorboardX logger
