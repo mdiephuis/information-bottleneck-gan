@@ -3,7 +3,7 @@ import torch
 from tensorboardX import SummaryWriter
 import torchvision.utils as tvu
 
-import torch.nn.functional as F
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from models import *
 from utils import *
@@ -29,8 +29,6 @@ parser.add_argument('--out-channels', type=int, default=64, metavar='N',
 parser.add_argument('--encoder-size', type=int, default=1024, metavar='N',
                     help='VAE encoder size (default: 1024')
 
-parser.add_argument('--e-learning-rate', type=float, default=1e-3,
-                    help='Encoder learning rate (default: 1e-3')
 parser.add_argument('--g-learning-rate', type=float, default=1e-3,
                     help='Generator learning rate (default: 1e-3')
 parser.add_argument('--eg-learning-rate', type=float, default=1e-3,
@@ -158,7 +156,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         x_hat = G(z_draw)
         y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
 
-        generator_loss = loss_bce_sum(y_hat, y_ones) + F.binary_cross_entropy(x_hat, x)
+        generator_loss = loss_bce_sum(y_hat, y_ones) + loss_bce_sum(x_hat, x)
 
         generator_batch_loss += generator_loss.item() / batch_size
 
@@ -193,7 +191,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
     return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
 
 
-def execute_graph(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, use_tb):
+def execute_graph(E, G, D, EG_optim, G_optim, D_optim, G_scheduler, EG_scheduler, D_scheduler, loader, epoch, use_tb):
     print('=> epoch: {}'.format(epoch))
     # Training loss
     VAE_t_loss, G_t_loss, D_t_loss = train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train=True)
@@ -233,6 +231,10 @@ def execute_graph(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, use_tb):
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('manifold example', sample, epoch)
 
+    G_scheduler.step(G_v_loss)
+    EG_scheduler.step(VAE_v_loss)
+    D_scheduler.step(D_v_loss)
+
     return G_v_loss, D_v_loss
 
 
@@ -264,18 +266,18 @@ D.apply(init_xavier_weights)
 beta1 = 0.5
 beta2 = 0.999
 
-E_optim = torch.optim.Adam(E.parameters(), lr=args.e_learning_rate, betas=(beta1, beta2))
 G_optim = torch.optim.Adam(G.parameters(), lr=args.g_learning_rate, betas=(beta1, beta2))
-
 EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate, betas=(beta1, beta2))
-
 D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1, beta2))
+
+G_scheduler = ReduceLROnPlateau(G_optim, 'max', verbose=True)
+EG_scheduler = ReduceLROnPlateau(EG_optim, 'max', verbose=True)
+D_scheduler = ReduceLROnPlateau(D_optim, 'max', verbose=True)
 
 
 # Main training loop
 for epoch in range(1, args.epochs):
-    _, _ = execute_graph(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, use_tb)
-
+    _, _ = execute_graph(E, G, D, EG_optim, G_optim, D_optim, G_scheduler, EG_scheduler, D_scheduler, loader, epoch, use_tb)
 
 # TensorboardX logger
 logger.close()
