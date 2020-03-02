@@ -66,7 +66,7 @@ else:
 
 
 # Data set transforms
-transforms = [transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
+# transforms = [transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
 transforms = None
 
 # Get train and test loaders for dataset
@@ -93,8 +93,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
     score_dx = 0
     score_d_x_hat_1 = 0
 
-    loss_bce_sum = nn.BCELoss(reduction='sum')
-    loss_bce_mean = nn.BCELoss(reduction='mean')
+    # loss_bce = nn.BCELoss(reduction='mean')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
@@ -140,13 +139,14 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         #############################################
         # Discriminator loss
-        discriminator_loss = loss_bce_sum(y_real, y_ones) + loss_bce_sum(y_hat, y_zeros)
+        # discriminator_loss = loss_bce(y_real, y_ones) + loss_bce(y_hat, y_zeros)
+        discriminator_loss = ls_discriminator_loss(y_real, y_hat)
 
         discriminator_batch_loss += discriminator_loss.item() / batch_size
 
         if is_train:
             D_optim.zero_grad()
-            discriminator_loss.backward()
+            discriminator_loss.backward(retain_graph=True)
             D_optim.step()
 
         #############################################
@@ -160,7 +160,8 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
         y_hat = D(x_hat)
 
-        generator_loss = loss_bce_sum(y_hat, y_ones) + loss_bce_sum(x_hat, x)
+        # generator_loss = loss_bce(y_hat, y_ones) + loss_bce(x_hat, x)
+        generator_loss = ls_generator_loss(y_hat) + loss_bce(x_hat, x)
 
         generator_batch_loss += generator_loss.item() / batch_size
 
@@ -180,7 +181,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         loss_kld = loss_kl_gauss(z_mu, z_logvar)
 
         # Loss 2, reconstruction loss
-        loss_recon = loss_bce_sum(x_hat.view(-1, 1), x.view(-1, 1))
+        loss_recon = loss_bce(x_hat.view(-1, 1), x.view(-1, 1))
 
         vae_loss = loss_kld + loss_recon
         vae_batch_loss += vae_loss.item() / batch_size
@@ -275,9 +276,13 @@ D.apply(init_xavier_weights)
 beta1 = 0.5
 beta2 = 0.999
 
-G_optim = torch.optim.Adam(G.parameters(), lr=args.g_learning_rate, betas=(beta1, beta2))
-EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate, betas=(beta1, beta2))
-D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1, beta2))
+# G_optim = torch.optim.Adam(G.parameters(), lr=args.g_learning_rate, betas=(beta1, beta2))
+# EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate, betas=(beta1, beta2))
+# D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1, beta2))
+
+G_optim = torch.optim.RMSprop(G.parameters(), lr=args.g_learning_rate)
+EG_optim = torch.optim.RMSprop(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate)
+D_optim = torch.optim.RMSprop(D.parameters(), lr=args.d_learning_rate)
 
 G_scheduler = ReduceLROnPlateau(G_optim, 'max', verbose=True)
 EG_scheduler = ReduceLROnPlateau(EG_optim, 'max', verbose=True)
