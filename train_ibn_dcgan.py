@@ -28,8 +28,16 @@ parser.add_argument('--out-channels', type=int, default=64, metavar='N',
                     help='VAE 2D conv channel output (default: 64')
 parser.add_argument('--encoder-size', type=int, default=1024, metavar='N',
                     help='VAE encoder size (default: 1024')
-parser.add_argument('--learning-rate', type=float, default=1e-4,
-                    help='Learning rate (default: 1e-4')
+
+parser.add_argument('--e-learning-rate', type=float, default=1e-3,
+                    help='Encoder learning rate (default: 1e-3')
+parser.add_argument('--g-learning-rate', type=float, default=1e-3,
+                    help='Generator learning rate (default: 1e-3')
+parser.add_argument('--eg-learning-rate', type=float, default=1e-3,
+                    help='Encoder-Generator learning rate (default: 1e-3')
+parser.add_argument('--d-learning-rate', type=float, default=1e-3,
+                    help='Discriminator learning rate (default: 1e-3')
+
 parser.add_argument('--log-dir', type=str, default='runs',
                     help='logging directory (default: runs)')
 parser.add_argument('--no-cuda', action='store_true', default=False,
@@ -256,13 +264,12 @@ D.apply(init_xavier_weights)
 beta1 = 0.5
 beta2 = 0.999
 
-# E_optim = torch.optim.RMSprop(E.parameters(), lr=1e-3, weight_decay=1e-5)
-E_optim = torch.optim.Adam(E.parameters(), lr=1e-3, betas=(beta1, beta2))
-G_optim = torch.optim.Adam(G.parameters(), lr=1e-3, betas=(beta1, beta2))
+E_optim = torch.optim.Adam(E.parameters(), lr=args.e_learning_rate, betas=(beta1, beta2))
+G_optim = torch.optim.Adam(G.parameters(), lr=args.g_learning_rate, betas=(beta1, beta2))
 
-EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=1e-3, betas=(beta1, beta2))
+EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate, betas=(beta1, beta2))
 
-D_optim = torch.optim.Adam(D.parameters(), lr=1e-4, betas=(beta1, beta2))
+D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1, beta2))
 
 
 # Main training loop
