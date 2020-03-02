@@ -246,11 +246,16 @@ latent_size = args.latent_size
 out_channels = args.out_channels
 in_channels = loader.img_shape[0]
 
-E = DCGAN2_Encoder(loader.img_shape, out_channels, encoder_size, latent_size).type(dtype)
-h_conv_outsize = E.H_conv_out
+
+print(np.prod(loader.img_shape))
+
+# E = DCGAN2_Encoder(loader.img_shape, out_channels, encoder_size, latent_size).type(dtype)
+E = MNIST_Encoder(np.prod(loader.img_shape), encoder_size, latent_size).type(dtype)
+# h_conv_outsize = E.H_conv_out
 print(E)
 
-G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).type(dtype)
+# G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).type(dtype)
+G = MNIST_Generator(latent_size, decoder_size, np.prod(loader.img_shape)).type(dtype)
 
 print(G)
 
