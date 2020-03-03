@@ -77,7 +77,7 @@ train_loader = loader.train_loader
 test_loader = loader.test_loader
 
 
-def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train):
+def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
 
     img_shape = loader.img_shape
 
@@ -94,8 +94,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
     # reporting all the losses
     vae_batch_loss_recon = 0
     vae_batch_loss_kl = 0
-    generator_batch_loss_recon = 0
-    generator_batch_loss_bce = 0
+    generator_batch_loss = 0
 
     # discriminator score on x and x_hat
     score_dx = 0
@@ -113,18 +112,17 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         #############################################
         # Update Discriminator network: maximize log(D(x)) + log(1 - D(G(z)))
         #
-        # Real data forward
-        z_x, z_x_mu, z_x_logvar = E(x)
-        z_x = z_x.detach()
-        x_hat = G(z_x)
+        if is_train:
+            D.zero_grad()
 
+        # noise sample
         z_draw = sample_gauss_noise(batch_size, args.latent_size)
         z_draw = z_draw.cuda() if args.cuda else z_draw
         x_gen = G(z_draw)
 
         # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
         y_gen = D(x_gen)
-        y_real = D(x_hat)
+        y_real = D(x)
 
         # Discriminator loss
         y_ones = torch.ones(batch_size, 1)
@@ -133,26 +131,30 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         y_ones = y_ones.cuda() if args.cuda else y_ones
         y_zeros = y_zeros.cuda() if args.cuda else y_zeros
 
-        #
-        score_dx += y_real.data.mean()
-        score_d_x_hat_1 += y_gen.data.mean()
-
         # Discriminator loss
-        discriminator_loss = loss_bce(y_real, y_ones) + loss_bce(y_gen, y_zeros)
+        d_loss_real = loss_bce(y_real, y_ones)
+        d_loss_fake = loss_bce(y_gen, y_zeros)
+
+        discriminator_loss = d_loss_real + d_loss_fake
 
         if is_train:
-            D_optim.zero_grad()
-            discriminator_loss.backward()
+            d_loss_real.backward()
+            d_loss_fake.backward()
             D_optim.step()
 
+        # logging
+        score_dx += y_real.data.mean()
+        score_d_x_hat_1 += y_gen.data.mean()
         discriminator_batch_loss += discriminator_loss.item() / batch_size
 
         #############################################
         # Update Generator/VAE network
+        if is_train:
+            E.zero_grad()
+            G.zero_grad()
 
         # Encoder - Generator update
-        # z_hat, z_mu, z_logvar = E(x)
-        z_x = E.reparameterize(z_x_mu, z_x_logvar)
+        z_x, z_x_mu, z_x_logvar = E(x)
 
         # Generator forward
         x_hat = G(z_x)
@@ -166,7 +168,6 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         vae_loss = loss_kld + loss_recon
 
         if is_train:
-            EG_optim.zero_grad()
             vae_loss.backward()
             EG_optim.step()
 
@@ -176,10 +177,11 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         #############################################
         # (3) Update G network: maximize log(D(G(z)))
+        # if is_train:
+        #     G.zero_grad()
 
         # Real data forward
         z_x, z_x_mu, z_x_logvar = E(x)
-        z_x = z_x.detach()
 
         x_hat = G(z_x)
         y_real = D(x_hat)
@@ -187,26 +189,25 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         generator_loss = loss_bce(y_real, y_ones)
 
         if is_train:
-            G_optim.zero_grad()
             generator_loss.backward()
-            G_optim.step()
+            EG_optim.step()
 
         generator_batch_loss += generator_loss.item() / batch_size
 
     print('D(x): %.4f D(G(z)): %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat_1 / (batch_idx + 1)))
-    print('Generator loss check: %.4f' % (generator_batch_loss_recon / (batch_idx + 1)))
+    print('Generator loss check: %.4f' % (generator_batch_loss / (batch_idx + 1)))
     print('VAE loss check: recon: %.4f kld: %.4f' % (vae_batch_loss_recon / (batch_idx + 1), vae_batch_loss_kl / (batch_idx + 1)))
 
     return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
 
 
-def execute_graph(E, G, D, EG_optim, G_optim, D_optim, G_scheduler, EG_scheduler, D_scheduler, loader, epoch, use_tb):
+def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader, epoch, use_tb):
     print('=> epoch: {}'.format(epoch))
     # Training loss
-    VAE_t_loss, G_t_loss, D_t_loss = train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train=True)
+    VAE_t_loss, G_t_loss, D_t_loss = train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train=True)
 
     # Validation loss
-    VAE_v_loss, G_v_loss, D_v_loss = train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train=False)
+    VAE_v_loss, G_v_loss, D_v_loss = train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train=False)
 
     print('=> epoch: {} Average Train VAE loss: {:.4f}, G loss: {:.4f}, D loss: {:.4f}'.format(epoch, VAE_t_loss, G_t_loss, D_t_loss))
     print('=> epoch: {} Average Valid VAE loss: {:.4f}, G loss: {:.4f}, D loss: {:.4f}'.format(epoch, VAE_v_loss, G_v_loss, D_v_loss))
@@ -239,7 +240,6 @@ def execute_graph(E, G, D, EG_optim, G_optim, D_optim, G_scheduler, EG_scheduler
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('manifold example', sample, epoch)
 
-    G_scheduler.step(G_v_loss)
     EG_scheduler.step(VAE_v_loss)
     D_scheduler.step(D_v_loss)
 
@@ -277,27 +277,17 @@ D.apply(init_wgan_weights)
 beta1 = 0.5
 beta2 = 0.999
 
-G_optim = torch.optim.Adam(G.parameters(), lr=args.g_learning_rate, betas=(beta1, beta2))
 EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate, betas=(beta1, beta2))
 D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1, beta2))
 
-# G_optim = torch.optim.RMSprop(G.parameters(), lr=args.g_learning_rate)
-# EG_optim = torch.optim.RMSprop(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate)
-# D_optim = torch.optim.RMSprop(D.parameters(), lr=args.d_learning_rate)
-
-# G_scheduler = ReduceLROnPlateau(G_optim, 'max', verbose=True)
-# EG_scheduler = ReduceLROnPlateau(EG_optim, 'max', verbose=True)
-# D_scheduler = ReduceLROnPlateau(D_optim, 'max', verbose=True)
-
 # Scheduling
-G_scheduler = ExponentialLR(G_optim, gamma=args.decay_lr)
 EG_scheduler = ExponentialLR(EG_optim, gamma=args.decay_lr)
 D_scheduler = ExponentialLR(D_optim, gamma=args.decay_lr)
 
 
 # Main training loop
 for epoch in range(1, args.epochs):
-    _, _ = execute_graph(E, G, D, EG_optim, G_optim, D_optim, G_scheduler, EG_scheduler, D_scheduler, loader, epoch, use_tb)
+    _, _ = execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader, epoch, use_tb)
 
 # TensorboardX logger
 logger.close()
