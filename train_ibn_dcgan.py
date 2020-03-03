@@ -109,6 +109,9 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
         x = x.cuda() if args.cuda else x
         x = x.view(batch_size, -1)
 
+        if is_conv:
+            x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+
         #############################################
         # Update Discriminator network: maximize log(D(x)) + log(1 - D(G(z)))
         #
@@ -120,7 +123,9 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
         z_draw = z_draw.cuda() if args.cuda else z_draw
         x_gen = G(z_draw)
 
-        # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
+        if is_conv:
+            x_gen = x_gen.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+
         y_gen = D(x_gen)
         y_real = D(x)
 
@@ -159,6 +164,9 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
         # Generator forward
         x_hat = G(z_x)
 
+        if is_conv:
+            x_hat = x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+
         # Loss 1, kl divergence
         loss_kld = loss_kl_gauss(z_x_mu, z_x_logvar)
 
@@ -177,13 +185,15 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
 
         #############################################
         # (3) Update G network: maximize log(D(G(z)))
-        # if is_train:
-        #     G.zero_grad()
 
         # Real data forward
         z_x, z_x_mu, z_x_logvar = E(x)
 
         x_hat = G(z_x)
+
+        if is_conv:
+            x_hat = x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+
         y_real = D(x_hat)
 
         generator_loss = loss_bce(y_real, y_ones)
@@ -222,20 +232,20 @@ def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader,
         logger.add_scalar(log_dir + '/D-valid-loss', D_v_loss, epoch)
 
         # Generate examples
-        sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
+        sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, is_conv, args.cuda)
         sample = sample.detach()
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('generation example', sample, epoch)
 
         # Reconstruction example
-        reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, args.cuda)
+        reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
         reconstructed = reconstructed.detach()
         reconstructed = tvu.make_grid(reconstructed, normalize=True, scale_each=True)
         logger.add_image('reconstruction example', reconstructed, epoch)
 
     # Manifold example
     if args.latent_size == 2:
-        sample = manifold_generation_example(G, loader.img_shape[1:], epoch, args.cuda)
+        sample = manifold_generation_example(G, loader.img_shape[1:], epoch, is_conv, args.cuda)
         sample = sample.detach()
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('manifold example', sample, epoch)
@@ -256,19 +266,22 @@ in_channels = loader.img_shape[0]
 
 print(np.prod(loader.img_shape))
 
-# E = DCGAN2_Encoder(loader.img_shape, out_channels, encoder_size, latent_size).type(dtype)
-E = MNIST_Encoder(np.prod(loader.img_shape), encoder_size, latent_size).type(dtype)
-# h_conv_outsize = E.H_conv_out
+E = DCGAN2_Encoder(loader.img_shape, out_channels, encoder_size, latent_size).type(dtype)
+# E = MNIST_Encoder(np.prod(loader.img_shape), encoder_size, latent_size).type(dtype)
+h_conv_outsize = E.H_conv_out
 print(E)
 
-# G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).type(dtype)
+G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).type(dtype)
 G = MNIST_Generator(latent_size, decoder_size, np.prod(loader.img_shape)).type(dtype)
 
 print(G)
 
-# D = DCGAN_Discriminator(in_channels).type(dtype)
-D = MNIST_Discriminator(784, 200).type(dtype)
+D = DCGAN_Discriminator(in_channels).type(dtype)
+# D = MNIST_Discriminator(784, 200).type(dtype)
 print(D)
+
+# Set conv. flag for reshaping images
+is_conv = is_conv_model(E)
 
 E.apply(init_wgan_weights)
 G.apply(init_wgan_weights)

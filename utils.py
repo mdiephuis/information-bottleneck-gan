@@ -120,7 +120,14 @@ def init_wgan_weights(m):
         m.bias.data.fill_(0)
 
 
-def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
+def is_conv_model(model):
+    for m in model.modules():
+        if isinstance(m, nn.ConvTranspose2d) or isinstance(m, nn.Conv2d):
+            return True
+    return False
+
+
+def ibn_generation_example(G, noise_dim, n_samples, img_shape, is_conv, use_cuda):
 
     z_real = sample_gauss_noise(n_samples, noise_dim)
     z_real = z_real.cuda() if use_cuda else z_real
@@ -133,18 +140,19 @@ def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
     return x_hat
 
 
-def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, use_cuda):
+def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv, use_cuda):
     E.eval()
     G.eval()
 
     x, _ = next(iter(test_loader))
 
-    x = x.view(x.size(0), -1)
+    if is_conv:
+        x = x.view(-1, img_shape[0], img_shape[1], img_shape[2])
+    else:
+        x = x.view(x.size(0), -1)
 
     #x = x * 0.5 + 0.5
     x = x.cuda() if use_cuda else x
-
-    # x = x.view(-1, img_shape[0], img_shape[1], img_shape[2])
 
     z_val, _, _ = E(x)
 
