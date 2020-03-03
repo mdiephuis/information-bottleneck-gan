@@ -212,13 +212,12 @@ class MNIST_Generator(nn.Module):
             nn.Linear(self.latent_dim, self.hidden_dim),
             nn.ReLU(),
             nn.Linear(self.hidden_dim, self.output_dim),
-            nn.Sigmoid()
         ])
 
     def forward(self, x):
         for layer in self.network:
             x = layer(x)
-        return x
+        return torch.tanh(x) * 0.5 + 0.5
 
 
 class MNIST_Encoder(nn.Module):
