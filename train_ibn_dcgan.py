@@ -168,7 +168,7 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
         vae_loss = loss_kld + loss_recon
 
         if is_train:
-            vae_loss.backward()
+            vae_loss.backward(retain_graph=True)
             EG_optim.step()
 
         vae_batch_loss += vae_loss.item() / batch_size
