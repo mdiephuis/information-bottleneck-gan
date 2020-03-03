@@ -101,6 +101,7 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
     score_d_x_hat_1 = 0
 
     # loss_bce = nn.BCELoss(reduction='mean')
+    loss_mse = nn.MSELoss(reduction='sum')
 
     for batch_idx, (x, _) in enumerate(data_loader):
 
@@ -171,7 +172,7 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
         loss_kld = loss_kl_gauss(z_x_mu, z_x_logvar)
 
         # Loss 2, reconstruction loss
-        loss_recon = loss_bce(x_hat.view(-1, 1), x.view(-1, 1))
+        loss_recon = loss_mse(x_hat.view(-1, 1), x.view(-1, 1))
 
         vae_loss = loss_kld + loss_recon
 
@@ -272,7 +273,7 @@ h_conv_outsize = E.H_conv_out
 print(E)
 
 G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).type(dtype)
-G = MNIST_Generator(latent_size, decoder_size, np.prod(loader.img_shape)).type(dtype)
+# G = MNIST_Generator(latent_size, decoder_size, np.prod(loader.img_shape)).type(dtype)
 
 print(G)
 
