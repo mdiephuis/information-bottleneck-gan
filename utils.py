@@ -1,5 +1,12 @@
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.init as init
+import os
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+mpl.use('Agg')
 
 
 def ls_discriminator_loss(scores_real, scores_fake):
@@ -91,7 +98,20 @@ def init_xavier_weights(module):
                 init_xavier_weights(sub_mod)
 
 
-def normal_weights_init(m):
+def init_normal_weights(module, mu, std):
+    for m in module.modules():
+        if isinstance(m, nn.ConvTranspose2d) or isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+            m.weight.data.normal_(mu, std)
+            m.bias.data.zero_()
+            if hasattr(m, 'bias') and m.bias is not None:
+                init.constant_(m.bias, 0.0)
+        elif isinstance(m, nn.Sequential):
+            for sub_mod in m:
+                init_normal_weights(sub_mod, mu, std)
+
+
+def init_wgan_weights(m):
+    # https://github.com/martinarjovsky/WassersteinGAN/blob/master/main.py
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
         m.weight.data.normal_(0.0, 0.02)
@@ -146,3 +166,27 @@ def dcgan_reconstruction_example(E, G, test_loader, n_samples, img_shape, use_cu
     comparison = torch.cat((x, x_hat), 1).view(10 * img_shape[1], 2 * img_shape[2])
 
     return comparison
+
+
+def manifold_generation_example(G, img_shape, epoch, use_cuda):
+    z_range = 1
+    nx, ny = 15, 15
+
+    z1 = np.linspace(- z_range, z_range, ny)
+    z2 = np.linspace(- z_range, z_range, nx)
+    manifold = np.zeros(shape=(img_shape[0] * nx, img_shape[1] * ny))
+    x_pixel, y_pixel = 0, 0
+    for i in z1:
+        for j in z2:
+            z = torch.FloatTensor([i, j])
+            z = z.cuda() if use_cuda else z
+            sample = G(z).cpu().detach().numpy().reshape(img_shape[0], img_shape[1])
+            manifold[x_pixel:x_pixel + img_shape[0], y_pixel:y_pixel + img_shape[1]] = sample
+            y_pixel += img_shape[1]
+        x_pixel += img_shape[0]
+        y_pixel = 0
+    plt.imshow(manifold, extent=[- z_range, z_range, - z_range, z_range])
+    if not os.path.exists('results'):
+        os.makedirs('results')
+    plt.savefig('results/manifold_example_{}.png'.format(epoch))
+    return torch.from_numpy(manifold)

@@ -216,22 +216,21 @@ def execute_graph(E, G, D, EG_optim, G_optim, D_optim, G_scheduler, EG_scheduler
         logger.add_scalar(log_dir + '/G-valid-loss', G_v_loss, epoch)
         logger.add_scalar(log_dir + '/D-valid-loss', D_v_loss, epoch)
 
-    # Generate examples
-        img_shape = loader.img_shape
-        sample = dcgan_generation_example(G, args.latent_size, 10, img_shape, args.cuda)
+        # Generate examples
+        sample = dcgan_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
         sample = sample.detach()
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('generation example', sample, epoch)
 
-    # Reconstruction example
-        reconstructed = dcgan_reconstruction_example(E, G, loader.test_loader, 10, img_shape, args.cuda)
+        # Reconstruction example
+        reconstructed = dcgan_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, args.cuda)
         reconstructed = reconstructed.detach()
         reconstructed = tvu.make_grid(reconstructed, normalize=True, scale_each=True)
         logger.add_image('reconstruction example', reconstructed, epoch)
 
     # Manifold example
     if args.latent_size == 2:
-        sample = manifold_generation_example(G, img_shape, epoch, args.cuda)
+        sample = manifold_generation_example(G, loader.img_shape[1:], epoch, args.cuda)
         sample = sample.detach()
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('manifold example', sample, epoch)
@@ -268,9 +267,9 @@ D = MNIST_Discriminator(784, 200).type(dtype)
 print(D)
 
 
-E.apply(init_xavier_weights)
-G.apply(init_xavier_weights)
-D.apply(init_xavier_weights)
+E.apply(init_wgan_weights)
+G.apply(init_wgan_weights)
+D.apply(init_wgan_weights)
 
 
 beta1 = 0.5
