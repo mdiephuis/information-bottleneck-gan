@@ -109,31 +109,22 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         x = x.cuda() if args.cuda else x
         x = x.view(batch_size, -1)
-        # x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
-        # eta = sample_gauss_noise(batch_size, img_shape[1] * img_shape[2], 0, 0.1)
-
-        # eta = eta.cuda() if args.cuda else eta
-
-        # x += eta.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
-
-        # Generator forward
+        #############################################
+        # Update Discriminator network: maximize log(D(x)) + log(1 - D(G(z)))
+        #
+        # Real data forward
+        z_x, z_x_mu, z_x_logvar = E(x)
+        z_x = z_x.detach()
+        x_hat = G(z_x)
 
         z_draw = sample_gauss_noise(batch_size, args.latent_size)
         z_draw = z_draw.cuda() if args.cuda else z_draw
-
-        #############################################
-        # Encoder forward
-        # z_hat, _, _ = E(x)
-        # z_hat = z_hat.detach()
-
-        x_hat = G(z_draw)
+        x_gen = G(z_draw)
 
         # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
-        y_hat = D(x_hat)
-
-        # Real data, discriminator forward
-        y_real = D(x)
+        y_gen = D(x_gen)
+        y_real = D(x_hat)
 
         # Discriminator loss
         y_ones = torch.ones(batch_size, 1)
@@ -141,71 +132,69 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         y_ones = y_ones.cuda() if args.cuda else y_ones
         y_zeros = y_zeros.cuda() if args.cuda else y_zeros
+
         #
         score_dx += y_real.data.mean()
-        score_d_x_hat_1 += y_hat.data.mean()
+        score_d_x_hat_1 += y_gen.data.mean()
 
-        #############################################
         # Discriminator loss
-        # discriminator_loss = loss_bce(y_real, y_ones) + loss_bce(y_hat, y_zeros)
-        discriminator_loss = ls_discriminator_loss(y_real, y_hat)
-
-        discriminator_batch_loss += discriminator_loss.item() / batch_size
+        discriminator_loss = loss_bce(y_real, y_ones) + loss_bce(y_gen, y_zeros)
 
         if is_train:
             D_optim.zero_grad()
-            discriminator_loss.backward(retain_graph=False)
+            discriminator_loss.backward()
             D_optim.step()
 
-        #############################################
-        # Generator update
-
-        z_draw = sample_gauss_noise(batch_size, args.latent_size)
-        z_draw = z_draw.cuda() if args.cuda else z_draw
-
-        # Generator forward
-        x_hat = G(z_draw)
-        # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
-        y_hat = D(x_hat)
-
-        generator_loss_recon = loss_bce(x_hat, x)
-        generator_loss_bce = ls_generator_loss(y_hat)
-        generator_loss = generator_loss_recon + generator_loss_bce
-
-        generator_batch_loss += generator_loss.item() / batch_size
-        generator_batch_loss_recon += generator_loss_recon.item() / batch_size
-        generator_batch_loss_bce += generator_loss_bce.item() / batch_size
-
-        if is_train:
-            G_optim.zero_grad()
-            generator_loss.backward(retain_graph=True)
-            G_optim.step()
+        discriminator_batch_loss += discriminator_loss.item() / batch_size
 
         #############################################
+        # Update Generator/VAE network
+
         # Encoder - Generator update
-        z_hat, z_mu, z_logvar = E(x)
+        # z_hat, z_mu, z_logvar = E(x)
+        z_x = E.reparameterize(z_x_mu, z_x_logvar)
 
         # Generator forward
-        x_hat = G(z_hat)
+        x_hat = G(z_x)
 
         # Loss 1, kl divergence
-        loss_kld = loss_kl_gauss(z_mu, z_logvar)
+        loss_kld = loss_kl_gauss(z_x_mu, z_x_logvar)
 
         # Loss 2, reconstruction loss
         loss_recon = loss_bce(x_hat.view(-1, 1), x.view(-1, 1))
 
         vae_loss = loss_kld + loss_recon
+
+        if is_train:
+            EG_optim.zero_grad()
+            vae_loss.backward()
+            EG_optim.step()
+
         vae_batch_loss += vae_loss.item() / batch_size
         vae_batch_loss_recon += loss_recon.item() / batch_size
         vae_batch_loss_kl += loss_kld.item() / batch_size
 
+        #############################################
+        # (3) Update G network: maximize log(D(G(z)))
+
+        # Real data forward
+        z_x, z_x_mu, z_x_logvar = E(x)
+        z_x = z_x.detach()
+
+        x_hat = G(z_x)
+        y_real = D(x_hat)
+
+        generator_loss = loss_bce(y_real, y_ones)
+
         if is_train:
-            EG_optim.zero_grad()
-            vae_loss.backward(retain_graph=True)
-            EG_optim.step()
+            G_optim.zero_grad()
+            generator_loss.backward()
+            G_optim.step()
+
+        generator_batch_loss += generator_loss.item() / batch_size
 
     print('D(x): %.4f D(G(z)): %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat_1 / (batch_idx + 1)))
-    print('Generator loss check: recon: %.4f bce: %.4f' % (generator_batch_loss_recon / (batch_idx + 1), generator_batch_loss_bce / (batch_idx + 1)))
+    print('Generator loss check: %.4f' % (generator_batch_loss_recon / (batch_idx + 1)))
     print('VAE loss check: recon: %.4f kld: %.4f' % (vae_batch_loss_recon / (batch_idx + 1), vae_batch_loss_kl / (batch_idx + 1)))
 
     return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
@@ -232,13 +221,13 @@ def execute_graph(E, G, D, EG_optim, G_optim, D_optim, G_scheduler, EG_scheduler
         logger.add_scalar(log_dir + '/D-valid-loss', D_v_loss, epoch)
 
         # Generate examples
-        sample = dcgan_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
+        sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
         sample = sample.detach()
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('generation example', sample, epoch)
 
         # Reconstruction example
-        reconstructed = dcgan_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, args.cuda)
+        reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, args.cuda)
         reconstructed = reconstructed.detach()
         reconstructed = tvu.make_grid(reconstructed, normalize=True, scale_each=True)
         logger.add_image('reconstruction example', reconstructed, epoch)
@@ -281,9 +270,9 @@ print(G)
 D = MNIST_Discriminator(784, 200).type(dtype)
 print(D)
 
-init_normal_weights(E, 0, 0.02)
-init_normal_weights(G, 0, 0.02)
-init_normal_weights(D, 0, 0.02)
+E.apply(init_wgan_weights)
+G.apply(init_wgan_weights)
+D.apply(init_wgan_weights)
 
 beta1 = 0.5
 beta2 = 0.999
