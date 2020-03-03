@@ -127,7 +127,7 @@ def is_conv_model(model):
     return False
 
 
-def ibn_generation_example(G, noise_dim, n_samples, img_shape, is_conv, use_cuda):
+def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
 
     z_real = sample_gauss_noise(n_samples, noise_dim)
     z_real = z_real.cuda() if use_cuda else z_real
@@ -160,6 +160,8 @@ def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv,
     #x_hat = x_hat * 0.5 + 0.5
 
     x = x[:n_samples].cpu().view(10 * img_shape[1], img_shape[2])
+
+
     x_hat = x_hat[:n_samples].cpu().view(10 * img_shape[1], img_shape[2])
     comparison = torch.cat((x, x_hat), 1).view(10 * img_shape[1], 2 * img_shape[2])
 

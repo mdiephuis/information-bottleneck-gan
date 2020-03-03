@@ -67,14 +67,20 @@ else:
     device = torch.device("cpu")
 
 
-# Data set transforms
-# transforms = [transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
-transforms = None
+if args.dataset_name == 'CelebA':
+    in_channels = 3
 
-# Get train and test loaders for dataset
-loader = Loader(args.dataset_name, args.data_dir, True, args.batch_size, transforms, None, args.cuda)
-train_loader = loader.train_loader
-test_loader = loader.test_loader
+    loader = CelebALoader(args.data_dir, args.batch_size, 0.2, True, True, args.cuda)
+    train_loader = loader.train_loader
+    test_loader = loader.test_loader
+
+else:
+    transforms = [transforms.Resize((64, 64)), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
+    in_channels = 1
+    # Get train and test loaders for dataset
+    loader = Loader(args.dataset_name, args.data_dir, True, args.batch_size, transforms, None, args.cuda)
+    train_loader = loader.train_loader
+    test_loader = loader.test_loader
 
 
 def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
@@ -233,16 +239,16 @@ def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader,
         logger.add_scalar(log_dir + '/D-valid-loss', D_v_loss, epoch)
 
         # Generate examples
-        sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, is_conv, args.cuda)
+        sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
         sample = sample.detach()
         sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('generation example', sample, epoch)
 
         # Reconstruction example
-        reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
-        reconstructed = reconstructed.detach()
-        reconstructed = tvu.make_grid(reconstructed, normalize=True, scale_each=True)
-        logger.add_image('reconstruction example', reconstructed, epoch)
+        # reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
+        # reconstructed = reconstructed.detach()
+        # reconstructed = tvu.make_grid(reconstructed, normalize=True, scale_each=True)
+        # logger.add_image('reconstruction example', reconstructed, epoch)
 
     # Manifold example
     if args.latent_size == 2:
@@ -261,24 +267,23 @@ def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader,
 encoder_size = args.encoder_size
 decoder_size = args.encoder_size
 latent_size = args.latent_size
-out_channels = args.out_channels
+out_channels = loader.img_shape[0]
 in_channels = loader.img_shape[0]
+channels_gen = args.out_channels
 
 
 print(np.prod(loader.img_shape))
 
 E = DCGAN2_Encoder(loader.img_shape, out_channels, encoder_size, latent_size).type(dtype)
-# E = MNIST_Encoder(np.prod(loader.img_shape), encoder_size, latent_size).type(dtype)
 h_conv_outsize = E.H_conv_out
 print(E)
 
-G = DCGAN2_Generator(h_conv_outsize, out_channels, decoder_size, latent_size).type(dtype)
-# G = MNIST_Generator(latent_size, decoder_size, np.prod(loader.img_shape)).type(dtype)
+G = DCGAN2_Generator(h_conv_outsize, out_channels, channels_gen, decoder_size, latent_size).type(dtype)
 
 print(G)
 
 D = DCGAN_Discriminator(in_channels).type(dtype)
-# D = MNIST_Discriminator(784, 200).type(dtype)
+
 print(D)
 
 # Set conv. flag for reshaping images

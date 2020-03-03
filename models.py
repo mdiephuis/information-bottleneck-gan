@@ -38,7 +38,7 @@ class DCGAN_Discriminator(nn.Module):
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
             nn.MaxPool2d((2, 2), stride=(2, 2)),
             BatchFlatten(),
-            nn.Linear(64 * 16, 512),
+            nn.Linear(64 * 13 * 13, 512),
             nn.LeakyReLU(negative_slope=0.01, inplace=True),
             nn.Linear(512, 1)
         ])
@@ -127,7 +127,7 @@ class DCGAN2_Encoder(nn.Module):
 
         self.network = nn.Sequential(
             # in_channels, out_channels, kernel_size, stride=1, padding=0
-            nn.Conv2d(1, out_channels, 4, 2, padding=1),
+            nn.Conv2d(input_shape[0], out_channels, 4, 2, padding=1),
             nn.LeakyReLU(),
             nn.BatchNorm2d(out_channels),
 
@@ -170,29 +170,29 @@ class DCGAN2_Encoder(nn.Module):
 
 
 class DCGAN2_Generator(nn.Module):
-    def __init__(self, H_conv_out, out_channels, decoder_size, latent_size):
+    def __init__(self, H_conv_out, out_channels, channels, decoder_size, latent_size):
         super(DCGAN2_Generator, self).__init__()
 
         self.decoder = nn.ModuleList([
             nn.Linear(latent_size, decoder_size),
             nn.ReLU(),
 
-            nn.Linear(decoder_size, H_conv_out * H_conv_out * out_channels * 2),
+            nn.Linear(decoder_size, H_conv_out * H_conv_out * channels * 2),
             nn.ReLU(),
-            BatchReshape((-1, out_channels * 2, H_conv_out, H_conv_out, )),
+            BatchReshape((-1, channels * 2, H_conv_out, H_conv_out, )),
 
-            nn.ConvTranspose2d(out_channels * 2, out_channels, 4, 2, padding=1),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(),
-
-            nn.ConvTranspose2d(out_channels, out_channels, 3, 1, padding=1),
-            nn.BatchNorm2d(out_channels),
+            nn.ConvTranspose2d(channels * 2, channels, 4, 2, padding=1),
+            nn.BatchNorm2d(channels),
             nn.ReLU(),
 
-            nn.ConvTranspose2d(out_channels, out_channels // 2, 4, 2, padding=1),
+            nn.ConvTranspose2d(channels, channels, 3, 1, padding=1),
+            nn.BatchNorm2d(channels),
             nn.ReLU(),
 
-            nn.ConvTranspose2d(out_channels // 2, 1, 3, 1, padding=1),
+            nn.ConvTranspose2d(channels, channels // 2, 4, 2, padding=1),
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(channels // 2, out_channels, 3, 1, padding=1),
         ])
 
     def forward(self, x):
