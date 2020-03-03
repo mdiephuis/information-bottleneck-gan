@@ -120,9 +120,9 @@ def init_wgan_weights(m):
         m.bias.data.fill_(0)
 
 
-def dcgan_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
+def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
 
-    z_real = sample_uniform_noise(n_samples, noise_dim)
+    z_real = sample_gauss_noise(n_samples, noise_dim)
     z_real = z_real.cuda() if use_cuda else z_real
 
     x_hat = G(z_real).cpu().view(n_samples, img_shape[0], img_shape[1], img_shape[2])
@@ -133,17 +133,7 @@ def dcgan_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
     return x_hat
 
 
-def mnist_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
-
-    z_real = sample_gauss_noise(n_samples, noise_dim)
-    z_real = z_real.cuda() if use_cuda else z_real
-
-    x_hat = G.decoder(z_real).cpu().view(n_samples, img_shape[0], img_shape[1], img_shape[2])
-
-    return x_hat
-
-
-def dcgan_reconstruction_example(E, G, test_loader, n_samples, img_shape, use_cuda):
+def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, use_cuda):
     E.eval()
     G.eval()
 
