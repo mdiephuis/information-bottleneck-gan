@@ -91,6 +91,12 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
     generator_batch_loss = 0
     discriminator_batch_loss = 0
 
+    # reporting all the losses
+    vae_batch_loss_recon = 0
+    vae_batch_loss_kl = 0
+    generator_batch_loss_recon = 0
+    generator_batch_loss_bce = 0
+
     # discriminator score on x and x_hat
     score_dx = 0
     score_d_x_hat_1 = 0
@@ -162,10 +168,13 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
         # y_hat = D(x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2]))
         y_hat = D(x_hat)
 
-        # generator_loss = loss_bce(y_hat, y_ones) + loss_bce(x_hat, x)
-        generator_loss = ls_generator_loss(y_hat) + loss_bce(x_hat, x)
+        generator_loss_recon = loss_bce(x_hat, x)
+        generator_loss_bce = ls_generator_loss(y_hat)
+        generator_loss = generator_loss_recon + generator_loss_bce
 
         generator_batch_loss += generator_loss.item() / batch_size
+        generator_batch_loss_recon += generator_loss_recon.item() / batch_size
+        generator_batch_loss_bce += generator_loss_bce.item() / batch_size
 
         if is_train:
             G_optim.zero_grad()
@@ -187,6 +196,8 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         vae_loss = loss_kld + loss_recon
         vae_batch_loss += vae_loss.item() / batch_size
+        vae_batch_loss_recon += loss_recon.item() / batch_size
+        vae_batch_loss_kl += loss_kld.item() / batch_size
 
         if is_train:
             EG_optim.zero_grad()
@@ -194,6 +205,8 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
             EG_optim.step()
 
     print('D(x): %.4f D(G(z)): %.4f' % (score_dx / (batch_idx + 1), score_d_x_hat_1 / (batch_idx + 1)))
+    print('Generator loss check: recon: %.4f bce: %.4f' % (generator_batch_loss_recon / (batch_idx + 1), generator_batch_loss_bce / (batch_idx + 1)))
+    print('VAE loss check: recon: %.4f kld: %.4f' % (vae_batch_loss_recon / (batch_idx + 1), vae_batch_loss_kl / (batch_idx + 1)))
 
     return vae_batch_loss / (batch_idx + 1), generator_batch_loss / (batch_idx + 1), discriminator_batch_loss / (batch_idx + 1)
 
