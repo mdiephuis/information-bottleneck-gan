@@ -3,7 +3,7 @@ import torch
 from tensorboardX import SummaryWriter
 import torchvision.utils as tvu
 
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau, ExponentialLR
 
 from models import *
 from utils import *
@@ -35,6 +35,8 @@ parser.add_argument('--eg-learning-rate', type=float, default=1e-3,
                     help='Encoder-Generator learning rate (default: 1e-3')
 parser.add_argument('--d-learning-rate', type=float, default=1e-3,
                     help='Discriminator learning rate (default: 1e-3')
+parser.add_argument("--decay-lr", default=0.75, action="store", type=float,
+                    help='Learning rate decay (default: 0.75')
 
 parser.add_argument('--log-dir', type=str, default='runs',
                     help='logging directory (default: runs)')
@@ -146,7 +148,7 @@ def train_validate(E, G, D, EG_optim, G_optim, D_optim, loader, epoch, is_train)
 
         if is_train:
             D_optim.zero_grad()
-            discriminator_loss.backward(retain_graph=True)
+            discriminator_loss.backward(retain_graph=False)
             D_optim.step()
 
         #############################################
@@ -266,26 +268,29 @@ print(G)
 D = MNIST_Discriminator(784, 200).type(dtype)
 print(D)
 
-
-E.apply(init_wgan_weights)
-G.apply(init_wgan_weights)
-D.apply(init_wgan_weights)
-
+init_normal_weights(E, 0, 0.02)
+init_normal_weights(G, 0, 0.02)
+init_normal_weights(D, 0, 0.02)
 
 beta1 = 0.5
 beta2 = 0.999
 
-# G_optim = torch.optim.Adam(G.parameters(), lr=args.g_learning_rate, betas=(beta1, beta2))
-# EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate, betas=(beta1, beta2))
-# D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1, beta2))
+G_optim = torch.optim.Adam(G.parameters(), lr=args.g_learning_rate, betas=(beta1, beta2))
+EG_optim = torch.optim.Adam(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate, betas=(beta1, beta2))
+D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1, beta2))
 
-G_optim = torch.optim.RMSprop(G.parameters(), lr=args.g_learning_rate)
-EG_optim = torch.optim.RMSprop(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate)
-D_optim = torch.optim.RMSprop(D.parameters(), lr=args.d_learning_rate)
+# G_optim = torch.optim.RMSprop(G.parameters(), lr=args.g_learning_rate)
+# EG_optim = torch.optim.RMSprop(list(E.parameters()) + list(G.parameters()), lr=args.eg_learning_rate)
+# D_optim = torch.optim.RMSprop(D.parameters(), lr=args.d_learning_rate)
 
-G_scheduler = ReduceLROnPlateau(G_optim, 'max', verbose=True)
-EG_scheduler = ReduceLROnPlateau(EG_optim, 'max', verbose=True)
-D_scheduler = ReduceLROnPlateau(D_optim, 'max', verbose=True)
+# G_scheduler = ReduceLROnPlateau(G_optim, 'max', verbose=True)
+# EG_scheduler = ReduceLROnPlateau(EG_optim, 'max', verbose=True)
+# D_scheduler = ReduceLROnPlateau(D_optim, 'max', verbose=True)
+
+# Scheduling
+G_scheduler = ExponentialLR(G_optim, gamma=args.decay_lr)
+EG_scheduler = ExponentialLR(EG_optim, gamma=args.decay_lr)
+D_scheduler = ExponentialLR(D_optim, gamma=args.decay_lr)
 
 
 # Main training loop
