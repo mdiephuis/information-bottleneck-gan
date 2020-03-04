@@ -143,6 +143,7 @@ def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
     z_real = z_real.cuda() if use_cuda else z_real
 
     x_hat = G(z_real).cpu().detach()
+    x_hat = x_hat * 0.5 + 0.5
     x_hat = torch.transpose(x_hat, 1, 2)
     x_hat = torch.transpose(x_hat, 2, 3)
 
@@ -173,6 +174,8 @@ def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv,
     z_val, _, _ = E(x)
 
     x_hat = G(z_val)
+
+    x_hat = x_hat * 0.5 + 0.5
 
     if len(x.size()) == 3:
         x = x.unsqueeze(1)

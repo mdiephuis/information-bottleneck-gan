@@ -198,7 +198,7 @@ class DCGAN2_Generator(nn.Module):
     def forward(self, x):
         for layer in self.decoder:
             x = layer(x)
-        return torch.tanh(x) * 0.5 + 0.5
+        return torch.tanh(x)
 
 
 class MNIST_Generator(nn.Module):
@@ -217,7 +217,7 @@ class MNIST_Generator(nn.Module):
     def forward(self, x):
         for layer in self.network:
             x = layer(x)
-        return torch.tanh(x) * 0.5 + 0.5
+        return torch.tanh(x)
 
 
 class MNIST_Encoder(nn.Module):
