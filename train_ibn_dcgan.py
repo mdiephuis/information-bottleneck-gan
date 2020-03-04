@@ -240,15 +240,16 @@ def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader,
 
         # Generate examples
         sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
-        logger.add_image('generation example', sample, epoch)
+        logger.add_image('generation example', im2tensorboard(sample), epoch)
 
         # Reconstruction example
-        reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
-        logger.add_image('reconstruction example', reconstructed, epoch)
+        sample = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
+        logger.add_image('reconstruction example', im2tensorboard(sample), epoch)
 
     # Manifold example
     if args.latent_size == 2:
         sample = manifold_generation_example(G, loader.img_shape[1:], epoch, is_conv, args.cuda)
+
         logger.add_image('manifold example', sample, epoch)
 
     EG_scheduler.step(VAE_v_loss)

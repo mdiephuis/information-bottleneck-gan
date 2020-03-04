@@ -128,6 +128,15 @@ def is_conv_model(model):
     return False
 
 
+def im2tensorboard(sample):
+
+    if len(sample.shape) == 2:
+            sample = sample = sample[:, :, np.newaxis]
+
+    sample = np.transpose(sample, (2, 0, 1))
+    return torch.from_numpy(sample)
+
+
 def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
 
     z_real = sample_gauss_noise(n_samples, noise_dim)
@@ -139,9 +148,11 @@ def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
 
     x_hat = x_hat.reshape(n_samples * img_shape[1], img_shape[2], img_shape[0])
 
-    x_hat = tvu.make_grid(x_hat, normalize=True, scale_each=True)
+    sample = tvu.make_grid(x_hat, normalize=True, scale_each=True)
+    if sample.size(-1) == 1:
+        sample = sample.squeeze(-1)
 
-    return x_hat
+    return sample.numpy()
 
 
 def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv, use_cuda):
@@ -181,10 +192,7 @@ def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv,
     comparison = torch.cat((x, x_hat), 1)
 
     reconstructed = tvu.make_grid(comparison.detach().cpu(), normalize=True, scale_each=True)
-    if reconstructed.shape[-1] == 1:
-        reconstructed = reconstructed.squeeze(-1)
-
-    return reconstructed
+    return reconstructed.numpy()
 
 
 def manifold_generation_example(G, img_shape, epoch, use_cuda):
