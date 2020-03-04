@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 import os
+import torchvision.utils as tvu
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
@@ -132,10 +133,13 @@ def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
     z_real = sample_gauss_noise(n_samples, noise_dim)
     z_real = z_real.cuda() if use_cuda else z_real
 
-    x_hat = G(z_real).cpu().view(n_samples, img_shape[0], img_shape[1], img_shape[2])
+    x_hat = G(z_real).cpu().detach()
+    x_hat = torch.transpose(x_hat, 1, 2)
+    x_hat = torch.transpose(x_hat, 2, 3)
 
-    # due to tanh output layer in the generator
-    #x_hat = x_hat * 0.5 + 0.5
+    x_hat = x_hat.reshape(n_samples * img_shape[1], img_shape[2], img_shape[0])
+
+    x_hat = tvu.make_grid(x_hat, normalize=True, scale_each=True)
 
     return x_hat
 
@@ -146,26 +150,41 @@ def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv,
 
     x, _ = next(iter(test_loader))
 
+    n_samples = min((n_samples, x.size(0)))
+
     if is_conv:
         x = x.view(-1, img_shape[0], img_shape[1], img_shape[2])
     else:
         x = x.view(x.size(0), -1)
 
-    #x = x * 0.5 + 0.5
     x = x.cuda() if use_cuda else x
 
     z_val, _, _ = E(x)
 
     x_hat = G(z_val)
-    #x_hat = x_hat * 0.5 + 0.5
 
-    x = x[:n_samples].cpu().view(10 * img_shape[1], img_shape[2])
+    if len(x.size()) == 3:
+        x = x.unsqueeze(1)
+        x_hat = x_hat.unsqueeze(1)
 
+    x = x[:n_samples].cpu()
+    x = torch.transpose(x[:n_samples].cpu(), 1, 2)
+    x = torch.transpose(x[:n_samples].cpu(), 2, 3)
 
-    x_hat = x_hat[:n_samples].cpu().view(10 * img_shape[1], img_shape[2])
-    comparison = torch.cat((x, x_hat), 1).view(10 * img_shape[1], 2 * img_shape[2])
+    x = x.reshape(n_samples * img_shape[1], img_shape[2], img_shape[0])
 
-    return comparison
+    x_hat = x_hat[:n_samples].cpu()
+    x_hat = torch.transpose(x_hat, 1, 2)
+    x_hat = torch.transpose(x_hat, 2, 3)
+    x_hat = x_hat.reshape(n_samples * img_shape[1], img_shape[2], img_shape[0])
+
+    comparison = torch.cat((x, x_hat), 1)
+
+    reconstructed = tvu.make_grid(comparison.detach().cpu(), normalize=True, scale_each=True)
+    if reconstructed.shape[-1] == 1:
+        reconstructed = reconstructed.squeeze(-1)
+
+    return reconstructed
 
 
 def manifold_generation_example(G, img_shape, epoch, use_cuda):

@@ -10,7 +10,7 @@ from utils import *
 from data import *
 
 
-parser = argparse.ArgumentParser(description='DCGAN')
+parser = argparse.ArgumentParser(description='IBN')
 
 parser.add_argument('--uid', type=str, default='IBN_DCGAN',
                     help='Staging identifier (default: DCGAN)')
@@ -22,7 +22,7 @@ parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input training batch-size')
 parser.add_argument('--epochs', type=int, default=15, metavar='N',
                     help='number of training epochs (default: 15)')
-parser.add_argument('--latent-size', type=int, default=100, metavar='N',
+parser.add_argument('--latent-size', type=int, default=128, metavar='N',
                     help='Noise dimension (default: 10)')
 parser.add_argument('--out-channels', type=int, default=64, metavar='N',
                     help='VAE 2D conv channel output (default: 64')
@@ -240,21 +240,15 @@ def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader,
 
         # Generate examples
         sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
-        sample = sample.detach()
-        sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('generation example', sample, epoch)
 
         # Reconstruction example
-        # reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
-        # reconstructed = reconstructed.detach()
-        # reconstructed = tvu.make_grid(reconstructed, normalize=True, scale_each=True)
-        # logger.add_image('reconstruction example', reconstructed, epoch)
+        reconstructed = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
+        logger.add_image('reconstruction example', reconstructed, epoch)
 
     # Manifold example
     if args.latent_size == 2:
         sample = manifold_generation_example(G, loader.img_shape[1:], epoch, is_conv, args.cuda)
-        sample = sample.detach()
-        sample = tvu.make_grid(sample, normalize=True, scale_each=True)
         logger.add_image('manifold example', sample, epoch)
 
     EG_scheduler.step(VAE_v_loss)
@@ -263,7 +257,6 @@ def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader,
     return G_v_loss, D_v_loss
 
 
-# MNIST Model definitions
 encoder_size = args.encoder_size
 decoder_size = args.encoder_size
 latent_size = args.latent_size
