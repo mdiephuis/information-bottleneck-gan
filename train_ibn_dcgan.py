@@ -75,10 +75,10 @@ if args.dataset_name == 'CelebA':
     test_loader = loader.test_loader
 
 else:
-    transforms = [transforms.Resize((64, 64)), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
+    train_transform = [transforms.Resize((64, 64)), transforms.ToTensor(), transforms.Normalize([0.5], [0.5])]
     in_channels = 1
     # Get train and test loaders for dataset
-    loader = Loader(args.dataset_name, args.data_dir, True, args.batch_size, transforms, None, args.cuda)
+    loader = Loader(args.dataset_name, args.data_dir, True, args.batch_size, train_transform, None, args.cuda)
     train_loader = loader.train_loader
     test_loader = loader.test_loader
 
