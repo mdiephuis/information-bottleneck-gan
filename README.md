@@ -7,5 +7,5 @@ Pytorch implementation of the paper [Information bottleneck through variational 
 
 CelebA generation after 40 epochs:
 <p align="center">
-    <img src="assets/celeba_ibn_gan.png" width="115"\>
+    <img src="assets/celeba_ibn_gan_square.png" width="315"\>
 </p>
