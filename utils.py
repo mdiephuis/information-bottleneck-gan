@@ -156,6 +156,19 @@ def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
     return sample.numpy()
 
 
+def vaegan_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
+
+    z_real = sample_gauss_noise(n_samples, noise_dim)
+    z_real = z_real.cuda() if use_cuda else z_real
+    x_hat = G(z_real)
+    x_hat = x_hat.cpu().view(n_samples, img_shape[0], img_shape[1], img_shape[2])
+
+    # due to tanh output layer in the generator
+    x_hat = x_hat * 0.5 + 0.5
+
+    return x_hat
+
+
 def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv, use_cuda):
     E.eval()
     G.eval()
