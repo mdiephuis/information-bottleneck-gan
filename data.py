@@ -2,6 +2,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import datasets, transforms
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
+from PIL import Image
 
 
 class Loader(object):
@@ -91,6 +92,95 @@ class gauss_circle(object):
         centers_sample = self.centers[centers_idx, :]
         data_sample = np.random.normal(loc=centers_sample, scale=self.std)
         return data_sample.astype('float32')
+
+
+def get_augment_transforms():
+    all_transforms = transforms.Compose([
+        transforms.RandomResizedCrop(64),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomApply([transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+    return all_transforms
+
+
+class ImageFolderPair(datasets.ImageFolder):
+    def __init__(self, augment_transforms, *args, **kwargs):
+        super(ImageFolderPair, self).__init__(*args, **kwargs)
+        self.augment_transforms = augment_transforms
+
+    def __getitem__(self, index):
+        path, target = self.samples[index]
+        img = self.loader(path)
+
+        if self.augment_transforms is not None:
+            aug_img = self.augment_transforms(img)
+        else:
+            aug_img = img.copy()
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.augment_transforms is None:
+            aug_img = self.transform(aug_img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, aug_img, target
+
+
+# ugly
+class CelebAAugmentLoader(object):
+    """
+    loader for the CELEB-A dataset 40: 218-30, 15:178-15
+    """
+    def __init__(self, file_path, batch_size, valid_size, crop, shuffle, use_cuda):
+
+        kwargs = {'num_workers': 4, 'pin_memory': True} if use_cuda else {}
+
+        transform_list = []
+        if crop:
+            transform_list.append(transforms.CenterCrop(128))
+
+        transform_list.append(transforms.Resize((64, 64)))
+        transform_list.append(transforms.ToTensor())
+        transform_list.append(transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
+
+        transform = transforms.Compose(transform_list)
+
+        train_dataset, test_dataset = self.get_dataset(file_path, transform)
+
+        # Set the samplers
+        num_train = len(train_dataset)
+        indices = list(range(num_train))
+        split = int(np.floor(valid_size * num_train))
+
+        if shuffle:
+            np.random.shuffle(indices)
+
+        train_idx, valid_idx = indices[split:], indices[:split]
+        train_sampler = SubsetRandomSampler(train_idx)
+        valid_sampler = SubsetRandomSampler(valid_idx)
+
+        # Set the loaders
+        self.train_loader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, **kwargs)
+        self.test_loader = DataLoader(test_dataset, batch_size=batch_size, sampler=valid_sampler, **kwargs)
+
+        tmp_batch = self.train_loader.__iter__().__next__()[0]
+        self.img_shape = list(tmp_batch.size())[1:]
+
+    @staticmethod
+    def get_dataset(file_path, transform):
+
+        augment_transforms = get_augment_transforms()
+
+        train_dataset = ImageFolderPair(augment_transforms, file_path, transform)
+        test_dataset = ImageFolderPair(augment_transforms, file_path, transform)
+
+        return train_dataset, test_dataset
 
 
 class CelebALoader(object):
