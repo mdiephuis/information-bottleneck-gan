@@ -70,7 +70,7 @@ else:
 if args.dataset_name == 'CelebA':
     in_channels = 3
 
-    loader = CelebALoader(args.data_dir, args.batch_size, 0.2, True, True, args.cuda)
+    loader = CelebAAugmentLoader(args.data_dir, args.batch_size, 0.2, True, True, args.cuda)
     train_loader = loader.train_loader
     test_loader = loader.test_loader
 
@@ -109,15 +109,19 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
     # loss_bce = nn.BCELoss(reduction='mean')
     loss_mse = nn.MSELoss(reduction='sum')
 
-    for batch_idx, (x, _) in enumerate(data_loader):
+    for batch_idx, (x, x_aug, _) in enumerate(data_loader):
 
         batch_size = x.size(0)
 
         x = x.cuda() if args.cuda else x
-        x = x.view(batch_size, -1)
+        x_aug = x_aug.cuda() if args.cuda else x_aug
 
         if is_conv:
             x = x.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+            x_aug = x_aug.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+        else:
+            x = x.view(batch_size, -1)
+            x_aug = x_aug.view(batch_size, -1)
 
         #############################################
         # Update Discriminator network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -171,8 +175,14 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
         # Generator forward
         x_hat = G(z_x)
 
+        # Augmented forward
+        z_x_aug, _, _ = E(x_aug)
+
+        x_hat_aug = G(z_x_aug)
+
         if is_conv:
             x_hat = x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
+            x_hat_aug = x_hat.view(batch_size, img_shape[0], img_shape[1], img_shape[2])
 
         # Loss 1, kl divergence
         loss_kld = loss_kl_gauss(z_x_mu, z_x_logvar)
@@ -180,7 +190,10 @@ def train_validate(E, G, D, EG_optim, D_optim, loader, epoch, is_train):
         # Loss 2, reconstruction loss
         loss_recon = loss_mse(x_hat.view(-1, 1), x.view(-1, 1))
 
-        vae_loss = loss_kld + loss_recon
+        # Loss 3, augmented reconstruction loss
+        loss_recon2 = loss_mse(x_hat_aug.view(-1, 1), x.view(-1, 1))
+
+        vae_loss = loss_kld + loss_recon + loss_recon2
 
         if is_train:
             vae_loss.backward(retain_graph=True)
