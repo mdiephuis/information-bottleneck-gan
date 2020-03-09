@@ -173,7 +173,7 @@ def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv,
     E.eval()
     G.eval()
 
-    x, _ = next(iter(test_loader))
+    x = next(iter(test_loader))[0]
 
     n_samples = min((n_samples, x.size(0)))
 
