@@ -14,8 +14,8 @@ parser = argparse.ArgumentParser(description='IBN')
 
 parser.add_argument('--uid', type=str, default='IBN_DCGAN',
                     help='Staging identifier (default: DCGAN)')
-parser.add_argument('--dataset-name', type=str, default='MNIST',
-                    help='Name of dataset (default: MNIST')
+parser.add_argument('--dataset-name', type=str, default='CelebA',
+                    help='Name of dataset (default: CelebA')
 parser.add_argument('--data-dir', type=str, default='data',
                     help='Path to dataset (default: data')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
@@ -55,6 +55,13 @@ log_dir = args.log_dir
 # Logger
 if use_tb:
     logger = SummaryWriter(comment='_' + args.uid + '_' + args.dataset_name)
+
+# Setup asset directories
+if not os.path.exists('models'):
+    os.makedirs('models')
+
+if not os.path.exists('runs'):
+    os.makedirs('runs')
 
 # Enable CUDA, set tensor type and device
 if args.cuda:
@@ -297,10 +304,32 @@ D_optim = torch.optim.Adam(D.parameters(), lr=args.d_learning_rate, betas=(beta1
 EG_scheduler = ExponentialLR(EG_optim, gamma=args.decay_lr)
 D_scheduler = ExponentialLR(D_optim, gamma=args.decay_lr)
 
+# Main training loop
+best_g_loss = np.inf
 
 # Main training loop
 for epoch in range(1, args.epochs):
-    _, _ = execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader, epoch, use_tb)
+    g_v_loss, _ = execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader, epoch, use_tb)
+
+    if g_v_loss < best_g_loss:
+        g_v_loss = v_loss
+        print('Writing model checkpoint')
+        state = {
+            'epoch': epoch,
+            'E': E.state_dict(),
+            'G': G.state_dict(),
+            'D': D.state_dict(),
+            'EG_optim': EG_optim.state_dict(),
+            'D_optim': D_optim.state_dict(),
+            'EG_scheduler': EG_scheduler.state_dict(),
+            'D_scheduler': D_scheduler.state_dict(),
+            'val_loss': g_v_loss
+        }
+        t = time.localtime()
+        timestamp = time.strftime('%b-%d-%Y_%H%M', t)
+        file_name = 'models/{}_{}_{}_{:04.4f}.pt'.format(timestamp, args.uid, epoch, g_v_loss)
+
+        torch.save(state, file_name)
 
 # TensorboardX logger
 logger.close()
