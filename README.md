@@ -9,7 +9,7 @@ In progress Pytorch implementation of the paper [Information bottleneck through 
     
 
 
-CelebA generation after 40 epochs:
+CelebA generation after 12 epochs:
 <p align="center">
     <img src="assets/celeba_ibn_gan_square.png" width="315"\>
 </p>
