@@ -144,16 +144,11 @@ def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
 
     x_hat = G(z_real).cpu().detach()
     x_hat = x_hat * 0.5 + 0.5
-    x_hat = torch.transpose(x_hat, 1, 2)
-    x_hat = torch.transpose(x_hat, 2, 3)
-
-    x_hat = x_hat.reshape(n_samples * img_shape[1], img_shape[2], img_shape[0])
+    x_hat = x_hat.reshape(n_samples, img_shape[1], img_shape[2], img_shape[0])
 
     sample = tvu.make_grid(x_hat, normalize=True, scale_each=True)
-    if sample.size(-1) == 1:
-        sample = sample.squeeze(-1)
 
-    return sample.numpy()
+    return sample
 
 
 def vaegan_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
@@ -190,25 +185,13 @@ def ibn_reconstruction_example(E, G, test_loader, n_samples, img_shape, is_conv,
 
     x_hat = x_hat * 0.5 + 0.5
 
-    if len(x.size()) == 3:
-        x = x.unsqueeze(1)
-        x_hat = x_hat.unsqueeze(1)
-
     x = x[:n_samples].cpu()
-    x = torch.transpose(x[:n_samples].cpu(), 1, 2)
-    x = torch.transpose(x[:n_samples].cpu(), 2, 3)
-
-    x = x.reshape(n_samples * img_shape[1], img_shape[2], img_shape[0])
-
     x_hat = x_hat[:n_samples].cpu()
-    x_hat = torch.transpose(x_hat, 1, 2)
-    x_hat = torch.transpose(x_hat, 2, 3)
-    x_hat = x_hat.reshape(n_samples * img_shape[1], img_shape[2], img_shape[0])
 
-    comparison = torch.cat((x, x_hat), 1)
+    grid_x = tvu.make_grid(x.detach().cpu(), normalize=True, scale_each=True)
+    grid_x_hat = tvu.make_grid(x_hat.detach().cpu(), normalize=True, scale_each=True)
 
-    reconstructed = tvu.make_grid(comparison.detach().cpu(), normalize=True, scale_each=True)
-    return reconstructed.numpy()
+    return grid_x, grid_x_hat
 
 
 def manifold_generation_example(G, img_shape, epoch, use_cuda):

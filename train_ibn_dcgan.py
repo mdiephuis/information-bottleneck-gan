@@ -249,12 +249,13 @@ def execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader,
         logger.add_scalar(log_dir + '/D-valid-loss', D_v_loss, epoch)
 
         # Generate examples
-        sample = ibn_generation_example(G, args.latent_size, 10, loader.img_shape, args.cuda)
-        logger.add_image('generation example', im2tensorboard(sample), epoch)
+        sample = ibn_generation_example(G, args.latent_size, 8, loader.img_shape, args.cuda)
+        logger.add_image('generation example', sample, epoch)
 
         # Reconstruction example
-        sample = ibn_reconstruction_example(E, G, loader.test_loader, 10, loader.img_shape, is_conv, args.cuda)
-        logger.add_image('reconstruction example', im2tensorboard(sample), epoch)
+        sample_x, sample_xhat = ibn_reconstruction_example(E, G, loader.test_loader, 8, loader.img_shape, is_conv, args.cuda)
+        logger.add_image('original', sample_x, epoch)
+        logger.add_image('reconstruction', sample_xhat, epoch)
 
     # Manifold example
     if args.latent_size == 2:
