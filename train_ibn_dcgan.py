@@ -23,7 +23,7 @@ parser.add_argument('--data-dir', type=str, default='data',
                     help='Path to dataset (default: data')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input training batch-size')
-parser.add_argument('--epochs', type=int, default=15, metavar='N',
+parser.add_argument('--epochs', type=int, default=150, metavar='N',
                     help='number of training epochs (default: 15)')
 parser.add_argument('--latent-size', type=int, default=128, metavar='N',
                     help='Noise dimension (default: 10)')

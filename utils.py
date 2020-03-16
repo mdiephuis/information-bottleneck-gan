@@ -144,7 +144,6 @@ def ibn_generation_example(G, noise_dim, n_samples, img_shape, use_cuda):
 
     x_hat = G(z_real).cpu().detach()
     x_hat = x_hat * 0.5 + 0.5
-    x_hat = x_hat.reshape(n_samples, img_shape[1], img_shape[2], img_shape[0])
 
     sample = tvu.make_grid(x_hat, normalize=True, scale_each=True)
 
