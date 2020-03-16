@@ -312,7 +312,7 @@ for epoch in range(1, args.epochs):
     g_v_loss, _ = execute_graph(E, G, D, EG_optim, D_optim, EG_scheduler, D_scheduler, loader, epoch, use_tb)
 
     if g_v_loss < best_g_loss:
-        g_v_loss = v_loss
+        best_g_loss = g_v_loss
         print('Writing model checkpoint')
         state = {
             'epoch': epoch,
