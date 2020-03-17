@@ -23,9 +23,9 @@ parser.add_argument('--data-dir', type=str, default='data',
                     help='Path to dataset (default: data')
 parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                     help='input training batch-size')
-parser.add_argument('--epochs', type=int, default=150, metavar='N',
+parser.add_argument('--epochs', type=int, default=100, metavar='N',
                     help='number of training epochs (default: 15)')
-parser.add_argument('--latent-size', type=int, default=128, metavar='N',
+parser.add_argument('--latent-size', type=int, default=64, metavar='N',
                     help='Noise dimension (default: 10)')
 parser.add_argument('--out-channels', type=int, default=64, metavar='N',
                     help='VAE 2D conv channel output (default: 64')
@@ -70,7 +70,7 @@ if not os.path.exists('runs'):
 if args.cuda:
     dtype = torch.cuda.FloatTensor
     device = torch.device("cuda")
-    torch.cuda.set_device(0)
+    torch.cuda.set_device(1)
     print('GPU')
 else:
     dtype = torch.FloatTensor
@@ -331,7 +331,7 @@ for epoch in range(1, args.epochs):
         }
         t = time.localtime()
         timestamp = time.strftime('%b-%d-%Y_%H%M', t)
-        file_name = 'models/{}_{}_{}_{:04.4f}.pt'.format(timestamp, args.uid, epoch, g_v_loss)
+        file_name = 'models/{}_{}_{}_{}_{:04.4f}.pt'.format(timestamp, args.uid, epoch, latent_size, g_v_loss)
 
         torch.save(state, file_name)
 
